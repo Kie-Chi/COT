@@ -1,0 +1,9 @@
+{
+    "type": "verilog",
+    "xilinx_path": "D:\\Xilinx\\14.7\\ISE_DS\\ISE",
+    "logisim_path": "util\\logisim-generic-2.7.1.jar",
+    "mars_path": "util\\mars.jar",
+    "circ_dir": "circ",
+    "verilog_dir": "verilog",
+    "test_times": 10
+}
