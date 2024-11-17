@@ -45,6 +45,8 @@ class Runner :
         
     def dump_hex(self, src, hex_dst) :
         os.makedirs(hex_dst, exist_ok=True)
+        print()
+        print("Mars: Start dumping datas...")
         for code in src :
             flag, test = self.__find_endless(code)
             hex_txt = os.path.join(hex_dst, f"{os.path.basename(code).replace('.asm', '.txt')}")
@@ -55,6 +57,7 @@ class Runner :
                 "mc",
                 "CompactLargeText",
                 "ig",
+                "a",
                 "dump",
                 ".text",
                 "HexText",
@@ -67,19 +70,22 @@ class Runner :
                 mips.insert(3, "db")
             mips = " ".join(mips)
 
-            print()
+            # print()
             print(f"{os.path.basename(code)} :Mars is dumping data...")
             # os.system(mips)
             safe_execute(mips, os.path.join(self._dir, "info.txt"))
             
-            print(f"{os.path.basename(code)} :Data already dumped!")
+            # print(f"{os.path.basename(code)} :Data already dumped!")
             if flag :
                 with open(hex_txt, "a", encoding="utf-8") as file :
                     file.write(self.__translate(test) + "\n")
                     file.write("3c02d04c\n")
+        print("Mars: All dumped!!!")
 
     def _run_asm(self, src, out_log) :
         os.makedirs(out_log, exist_ok=True)
+        print()
+        print("Mars: Start executing asm...")
         for code in src :
             log_txt = os.path.join(out_log, f"{os.path.basename(code).replace('.asm', '.txt')}")
             ext = [
@@ -96,7 +102,6 @@ class Runner :
             ]
             if self._is_flow :
                 ext.insert(3, "db")
-            print()
             print(f"{os.path.basename(code)} :Mars executing asm...")
             # os.system(ext)
             safe_execute(ext, log_txt)
@@ -107,7 +112,8 @@ class Runner :
             # print(contents)
             with open(log_txt, "w", encoding="utf-8") as file :
                 file.writelines(contents)
-            print(f"{os.path.basename(code)} :Executed!")
+            # print(f"{os.path.basename(code)} :Executed!")
+        print("Mars: All executed!!!")
 
 
     def run_mars(self, src, hex_dst, out_log) :
@@ -122,7 +128,7 @@ class LogisimRunner(Runner) :
     def __read_data(self, path) :
         name = os.path.basename(path).replace(".txt", "")
         print()
-        print(f"{name} :Loading datas.....")
+        print(f"{name} :Loading datas...")
         data = []
         with open(path, "r", encoding="utf-8") as data_file :
             contents = [content.strip() for content in data_file.readlines()]
@@ -254,17 +260,18 @@ class LogisimRunner(Runner) :
             for cpu_file in cpu_files :
                 self.__add_main(cpu_file, content)
                 print()
-                print(f"{os.path.basename(cpu_file)}: Running logisim......")
+                print(f"{os.path.basename(cpu_file)}: Running logisim...")
                 logs, log_txt = self.__get_raw_logs(cpu_file, out_log)
 
-                print(f"{os.path.basename(cpu_file)}: Output the spj......")
+                print(f"{os.path.basename(cpu_file)}: Output the spj...")
                 self.__trans_to_spj(logs, log_txt)
                 
                 print(f"{os.path.basename(cpu_file)}: Logisim is already!")
 
 class XilinxRunner(Runner) :
-    def __init__(self, path, mars, cpu_path, the_dir, isFlow) :
+    def __init__(self, path, mars, cpu_path, the_dir, isFlow, tb) :
         super(XilinxRunner, self).__init__(path, mars, the_dir, isFlow)
+        self.__tb = tb
         self.__cpu_path = cpu_path
         self.__cpu_in_dir = os.path.basename(cpu_path)
         self.__cpus = None
@@ -277,7 +284,7 @@ class XilinxRunner(Runner) :
         self.__cpus = cpus
         for cpu in cpus:
             print()
-            print(f"{cpu}: Start creating .prj and .tcl......")
+            print(f"{cpu}: Start creating .prj and .tcl...")
             safe_makedirs(os.path.join(self._dir, self.__cpu_in_dir, cpu, "source"))
             ori_cpu_files, more = find_files(os.path.join(self.__cpu_path, cpu), ".v")
             cpu_files = []
@@ -287,7 +294,11 @@ class XilinxRunner(Runner) :
                 name = os.path.basename(file)
                 safe_copy(file, os.path.join(self._dir, self.__cpu_in_dir, cpu, "source", name))
                 
-            safe_copy(os.path.join("util","mips_tb.v"), os.path.join(self._dir, self.__cpu_in_dir, cpu, "source", "mips_tb.v"))
+            if self.__tb == 1:
+                safe_copy(os.path.join("util","mips_tb_1.v"), os.path.join(self._dir, self.__cpu_in_dir, cpu, "source", "mips_tb.v"))
+            elif self.__tb == 2:
+                safe_copy(os.path.join("util","mips_tb_2.v"), os.path.join(self._dir, self.__cpu_in_dir, cpu, "source", "mips_tb.v"))
+            
             ori_cpu_files.append(os.path.join(self.__cpu_in_dir, "mips_tb.v"))
             wrong = self.__fuse_ext(cpu, ori_cpu_files)
             if not wrong:
@@ -316,7 +327,7 @@ class XilinxRunner(Runner) :
             "mips_tb"
         ]
         fuse = " ".join(fuse)
-        print(f"{cpu}: Starting fusing......")
+        print(f"{cpu}: Starting fusing...")
         safe_execute(fuse, os.path.join(self._dir, self.__cpu_in_dir, cpu, "fuse_info.txt"), cwd=os.path.join(self._dir, self.__cpu_in_dir, cpu))
         path = os.path.join(self._dir, self.__cpu_in_dir, cpu, "mips.exe")
         if not os.path.exists(path):
@@ -333,7 +344,7 @@ class XilinxRunner(Runner) :
         safe_remove(os.path.join(self._dir, self.__cpu_in_dir, cpu, "fuse.log"))
         safe_remove(os.path.join(self._dir, self.__cpu_in_dir, cpu, "fuse.xmsgs"))
         safe_remove(os.path.join(self._dir, self.__cpu_in_dir, cpu, "fuseRelaunch.cmd"))
-        print(f"{cpu}: fuse end!!!")
+        print(f"{cpu}: Fuse end!!!")
         return True
     def __isim_ext(self, cpu):
         ext = [
@@ -357,10 +368,10 @@ class XilinxRunner(Runner) :
 
         for cpu in self.__cpus :
             print()
-            print(f"{cpu}: Start logging output......")
+            print(f"{cpu}: Start logging output...")
             safe_makedirs(os.path.join(self._dir, "log", cpu))
             for test in tests :
-                print(f"{cpu}: Executing {os.path.basename(test)}......")
+                print(f"{cpu}: Executing {os.path.basename(test)}...")
                 name = os.path.basename(test).replace(".txt", "")
                 safe_copy(test, os.path.join(self._dir, self.__cpu_in_dir, cpu, "code.txt"))
                 self.__isim_ext(cpu)
@@ -368,17 +379,21 @@ class XilinxRunner(Runner) :
                 with open(os.path.join(self._dir, self.__cpu_in_dir, cpu, "output.txt"), "r", encoding="utf-8") as file :
                     contents = file.readlines()
                 contents = [content for content in contents if "@" in content and "$ 0" not in content]
-                contents = ["@" + content.split("@")[1] for content in contents]
+                contents = [(int(content.split("@")[0].strip()), 1 if "*" in content.split("@")[1] else 0, "@" + content.split("@")[1]) for content in contents]
                 filted = []
                 for content in contents :
-                    if self._is_pcpass(content) :
+                    if self._is_pcpass(content[2]) :
                         break
                     filted.append(content)
+
+                filted.sort(key=lambda x : (x[0], x[1]))
+                filted = [fil[2] for fil in filted]
 
                 with open(os.path.join(self._dir, self.__cpu_in_dir, cpu, "output.txt"), "w", encoding="utf-8") as file :
                     file.writelines(filted)
                 safe_copy(os.path.join(self._dir, self.__cpu_in_dir, cpu, "output.txt"), os.path.join(self._dir, "log", cpu, f"{name}-{cpu}-out.txt"))
-                print(f"{cpu}: {os.path.basename(test)} is executed!!!")
+                # print(f"{cpu}: {os.path.basename(test)} is executed!!!")
+            print(f"{cpu}: All executed!!!")
             safe_rmtree(os.path.join(self._dir, self.__cpu_in_dir, cpu))
         safe_rmtree(os.path.join(self._dir, self.__cpu_in_dir))
         

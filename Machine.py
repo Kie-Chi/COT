@@ -2,22 +2,30 @@ import json
 import os
 from pathlib import Path
 import shutil
+
+import numpy as np
 from Runner import LogisimRunner, XilinxRunner, Runner
 import Runner
-from Generator import *
-from FlowDataMaker import DataMaker
+from DataMaker import DataMaker
 import time
 
 class Machine :
     def __init__(self) :
-        self.__test_dir = "2024-11-07-16-45-53-withMars-selfTest"
+        self.__test_dir = "2024-11-13-17-53-01-withMars-selfTest"
         self.__type = None
         self.__flow = True
-        
+        self.__tb = 0
+
+        self.__self_util = ""
+        self.__self_dir = ""
+
         self.__cpu_dir = None
         self.__cir_dir = None
         self.__verilog_dir = None
-        self.__asm_dir = ""
+        self.__asm_dir = "random"
+
+        self.__random_set = ""
+        self.__unit_set = ""
 
         self.__branch_time = 0
         self.__jump_time = 0
@@ -44,21 +52,36 @@ class Machine :
         if config :
             with open(config[0], "r", encoding="utf-8") as file :
                 file_config:dict = json.load(file)
-                self.__type = file_config["type"]
-                self.__xilinx_path = file_config["xilinx_path"]
-                self.__logisim_path = file_config["logisim_path"]
-                self.__mars_path = file_config["mars_path"]
-                self.__cir_dir = file_config["circ_dir"]
-                self.__verilog_dir = file_config["verilog_dir"]
-                self.__test_times = file_config["test_times"]
+            self.__type = file_config["type"]
+            self.__xilinx_path = file_config["xilinx_path"]
+            self.__logisim_path = file_config["logisim_path"]
+            self.__mars_path = file_config["mars_path"]
+            self.__cir_dir = file_config["circ_dir"]
+            self.__verilog_dir = file_config["verilog_dir"]
+            self.__test_times = file_config["test_times"]
+            self.__tb = file_config["tb"]
+            self.__self_util = file_config["self_util"]
+            self.__self_dir = file_config["self_dir"]
+            self.__random_set = file_config["random_set"]
+            self.__unit_set = file_config["unit_set"]
+            self.__flow = file_config["is_flow"]
+            self.__specify_set()
             
-    
+    def __specify_set(self) :
+        if "and" in self.__random_set["cal_r"] :
+            and_ind = self.__random_set["cal_r"].index("and")
+            self.__random_set["cal_r"][and_ind] = "andr"
+        
+        if "or" in self.__random_set["cal_r"]:
+            or_ind = self.__random_set["cal_r"].index("or")
+            self.__random_set["cal_r"][or_ind] = "orr"
+
     def __create_runner(self) :
         if self.__type == "logisim" :
             self.__runner = LogisimRunner(self.__logisim_path, self.__mars_path, self.__test_dir)
             self.__cpu_dir = self.__cir_dir
         elif self.__type == "verilog" :
-            self.__runner = XilinxRunner(self.__xilinx_path, self.__mars_path, self.__verilog_dir, self.__test_dir, self.__flow)
+            self.__runner = XilinxRunner(self.__xilinx_path, self.__mars_path, self.__verilog_dir, self.__test_dir, self.__flow, self.__tb)
             self.__cpu_dir = self.__verilog_dir
     def create_test(self) :
         print("Welcome to co_test_builder")
@@ -119,36 +142,57 @@ class Machine :
         elif self.__type == "verilog" :
             times = 3600
 
-
+        datamaker = DataMaker(self.__random_set, self.__unit_set)
         if self.__mtd == "unitTest" :
-            unit_test(self.__test_dir, times, self.__branch_time, self.__jump_time, level=level)
             self.__asm_dir = "unit"
+            Runner.safe_makedirs(os.path.join(self.__test_dir, self.__asm_dir))
+            datamaker.unit_test(times, os.path.join(self.__test_dir, self.__asm_dir))
+            
         else :
             self.__asm_dir = "random"
-            # os.system(f"mkdir -p {test_dir}/random")
-            # Runner.safe_makedirs(f"{test_dir}/random", exist_ok=True)
-            Runner.safe_makedirs(os.path.join(self.__test_dir, "random"), exist_ok=True)
-            x = np.random.randint(self.__test_times - 3, self.__test_times)
+            Runner.safe_makedirs(os.path.join(self.__test_dir, self.__asm_dir))
+            x = self.__test_times
             if self.__mtd == "randomTest" :
-                if self.__flow == True :
-                    for i in range(x) :
-                        with open(os.path.join(self.__test_dir, "random", f"random_{i}.asm"), "w", encoding="utf-8") as file :
-                            file.writelines(DataMaker().random_test(4000))
-                else :
-                    for i in range(x) :
-                        with open(os.path.join(self.__test_dir, "random", f"random_{i}.asm"), "w", encoding="utf-8") as file :
-                            file.writelines(random_test(list(range(32)), times, self.__branch_time, self.__jump_time, level=level))
+                for i in range(x):
+                    datamaker.random_test(times, os.path.join(self.__test_dir, self.__asm_dir, f"random_{i}.asm"))
             else :
-                for i in range(x) :
-                    command = [
-                        "echo",
-                        os.path.join(self.__test_dir, "random", f"random_{i}.asm"),
-                        "|",
-                        "util\\testcode.exe"
+                ind = 0
+                self_paths, self_files = Runner.find_files(self.__self_dir, "asm")
+                for file in self_paths:
+                    Runner.safe_copy(file, os.path.join(self.__test_dir, self.__asm_dir, f"random_{ind}.asm"))
+                    ind += 1
+                
+                self_paths, self_files = Runner.find_files(self.__self_dir, "txt")
+                for file in self_paths:
+                    disam = [
+                        os.path.join("util", "disasm.exe"),
+                        "-i",
+                        file,
+                        "-o",
+                        os.path.join(self.__test_dir, self.__asm_dir, f"random_{ind}.asm")
                     ]
-                    command = " ".join(command)
-                    Runner.safe_execute(command, "test.txt")
-                    Runner.safe_remove("test.txt")
+                    Runner.safe_execute(disam, "test.txt")
+                    ind += 1
+                Runner.safe_remove("test.txt")
+
+
+                if x > ind :
+                    temp = x - ind
+                    if self.__self_util != "":
+                        for i in range(temp) :
+                            command = [
+                                "echo",
+                                os.path.join(self.__test_dir, "random", f"random_{ind + i}.asm"),
+                                "|",
+                                self.__self_util
+                            ]
+                            command = " ".join(command)
+                            Runner.safe_execute(command, "test.txt")
+                        Runner.safe_remove("test.txt")
+                    else:
+                        for i in range(temp):
+                            datamaker.random_test(times, os.path.join(self.__test_dir, self.__asm_dir, f"random_{ind + i}.asm"))
+
 
     def __get_std_mars(self) :
         # if src_slt == "withMars" :
@@ -253,6 +297,8 @@ class Machine :
             ori_source = _asm.readlines()
         asm_source = [src for src in ori_source if ":\n" not in src]
 
+        asm_source = [asm for asm in asm_source if asm.strip() != ""]
+
         with open(os.path.join(self.__test_dir, "hex", f"{mips_test}.txt"), "r", encoding="utf-8") as _hex:
             hex_source = _hex.readlines()
         for i in range(lens) :
@@ -265,7 +311,7 @@ class Machine :
                 with open(os.path.join(self.__test_dir, "dif", name, f"{mips_test}-std-dif.log"), "w", encoding="utf-8") as dif :
                     dif.write(f"First error in line {i + 1}\n")
                     dif.write(f"------the first different Mips code \"{hex_source[dist].strip()}\"-----\n")
-                    dif.write(f"Mips Code : \"{asm_source[dist].strip()}\" in line {ori_source.index(asm_source[dist]) + 1}\n")
+                    dif.write(f"Mips Code: \"{asm_source[dist].strip()}\" in line {ori_source.index(asm_source[dist]) + 1}\n")
                     dif.write(f"Mars: \"{stdouts[i].strip()}\"\n")
                     dif.write(f"{name}: \"{outputs[i].strip()}\"\n")
                     dif.write(f"---------------------------------------\n")
@@ -273,7 +319,7 @@ class Machine :
                         pc = stdouts[i-1].split(" ")[0].strip("@:")
                         pc = int(pc, 16) - int("3000", 16)
                         dist = pc >> 2
-                        dif.write(f"the most recent same Mips code is \"{asm_source[dist].strip()}\" in line {ori_source.index(asm_source[dist]) + 1}\n")
+                        dif.write(f"the most recent same Mips code is: \"{asm_source[dist].strip()}\" in line {ori_source.index(asm_source[dist]) + 1}\n")
                         dif.write(f"the most recent same Mips code output is: \"{outputs[i - 1].strip()}\"\n\n")
                 break
         if len1 != len2 :
@@ -308,6 +354,9 @@ class Machine :
                         ori_source = _asm.readlines()
                     asm_source = [src for src in ori_source if ":\n" not in src]
 
+                    asm_source = [asm for asm in asm_source if asm.strip() != ""]
+
+
                     with open(os.path.join(self.__test_dir, "hex", f"{files[t]}.txt"), "r", encoding="utf-8") as _hex:
                         hex_source = _hex.readlines()
                     for i in range(lens) :
@@ -323,9 +372,9 @@ class Machine :
                             with open(os.path.join(self.__test_dir, "dif", files[t], f"{circ_files[x]}-{circ_files[j]}-dif.log"), "w", encoding="utf-8") as dif :
                                 dif.write(f"First dif in line {i + 1}\n")
                                 dif.write(f"------the first different Mips code-----\n")
-                                dif.write(f"{circ_files[x]} execute \"{asm_source[x_dist].strip()}\" in line {ori_source.index(asm_source[x_dist]) + 1}\n")
+                                dif.write(f"{circ_files[x]} execute: \"{asm_source[x_dist].strip()}\" in line {ori_source.index(asm_source[x_dist]) + 1}\n")
                                 dif.write(f"{circ_files[x]}: \"{outputs[x][t][i].strip()}\"\n")
-                                dif.write(f"{circ_files[j]} execute \"{asm_source[j_dist].strip()}\" in line {ori_source.index(asm_source[j_dist]) + 1}\n")
+                                dif.write(f"{circ_files[j]} execute: \"{asm_source[j_dist].strip()}\" in line {ori_source.index(asm_source[j_dist]) + 1}\n")
                                 dif.write(f"{circ_files[j]}: \"{outputs[j][t][i].strip()}\"\n")
                                 dif.write(f"---------------------------------------\n")
                                 if i >= 1 :

@@ -8,7 +8,7 @@
   - [x] P4对拍
   - [x] 流水线数据构造
   - [x] P5对拍
-  - [ ] P6对拍
+  - [x] P6对拍
 ---
 ## 功能
 - 对拍
@@ -23,8 +23,10 @@
   - 支持随机指令测试
     - `load/store`类、`branch`类、`jump`类指令由代码块的方式给出，不易出现bug
     - 死循环测试(目前仅支持beq死循环)
-  - 支持提供数据生成器测试
-    - 
+  - 支持定制化测试
+    - 使用者提供数据生成器测试
+    - 使用者提供数据(asm，或16进制码)测试
+    - **请保证您提供的数据是可行的，本测评机目前没有设置防止Mars卡死的措施**
 ---
 ## 使用
 ### 环境
@@ -54,21 +56,72 @@
 - 打开`Config`文件夹下的配置文件，如有多个，测评机只读取第一个文件配置
   ```json
     //需要使用的测评机版本"logisim"、"verilog"
-    //后续会加入对于P5、P6的数据增强
     "type": "verilog",
+
+    //是否是流水线CPU，意味着支持logisim-flow
+    "is_flow": true,
+
     //你的ISE路径
     "xilinx_path": "D:\\Xilinx\\14.7\\ISE_DS\\ISE",
+
     //你需要使用的logisim路径，默认已经配置好windows
     "logisim_path": "util\\logisim-generic-2.7.1.jar",
+
     //你需要使用的魔改mars路径，请不要改动，使用测评机自带的即可
     "mars_path": "util\\mars.jar",
+
     //logisimCPU文件存放文件夹，默认在测评机目录下的circ
     "circ_dir": "circ",
+
     //verilogCPU文件存放文件夹，默认在测评机目录下的verilog
     "verilog_dir": "verilog",
+
+    //定制测试中你需要提供的数据生成器的exe文件
+    "self_util": "util\\testcodeplus.exe",
+
+    //定制测试中你存放数据的文件夹，请保证全是asm或者txt文件
+    "self_dir": "self",
+
+    //你希望测评机测试的指令集，下面已经是目前能够提供的最大指令集
+    "random_set": {
+        "cal_r": ["add", "sub", "and", "or", "slt", "sltu"],
+        "cal_i": ["ori", "addi", "andi"],
+        "lui": ["lui"],
+        "store": ["sw", "sb", "sh"],
+        "load": ["lw", "lb", "lh"],
+        "branch": ["beq", "bne"],
+        "md": ["mult", "multu", "div", "divu"],
+        "mf": ["mfhi", "mflo"],
+        "mt": ["mthi", "mtlo"],
+        "j_l": ["jal"],
+        "j_r": ["jr"],
+        "nop": ["nop"]
+    },
+
+    //单元测试的指令集，是根据上方分类，所以请优先设置好random_set
+    "unit_set": {
+        "set_test": ["cal_i", "lui", "mt", "mf"],
+        "arth_test": ["cal_r", "md"],
+        "mem_test": ["store", "load"],
+        "branch_test": ["branch"],
+        "jump_test": ["j_l", "j_r"]
+    },
+
+    //0 -> 不需要测评机为你添加tb文件，请确保为mips_tb
+    //1 -> 正常tb文件，可以在util文件夹下查看内容或者更改，可以在P4、P5使用
+    //2 -> 官方tb文件，课程组提供的接口，可以在P6使用
+    "tb": 2,
+
     //random测试生成的文件数，使用unit测试时不会生效，请提前设置好！！！
     "test_times": 3
   ```
+- 目前测评机默认为测试P6环境
+- 请重点关注如下几个参数，如果没有配置正确，将影响测评机启动
+  - `type`
+  - `is_flow`
+  - `xlinx_path`
+  - `random_test` `unit_set`
+  - `tb`
 
 ### 各文件介绍
 - `circ`
@@ -81,14 +134,25 @@
     - **无需进行清洗，可以直接将ISE项目复制过来，测评机会自动选出所有的.v文件**，嫌麻烦甚至可以链接到你的ISE项目作为测评文件夹，**测评机不会对此文件夹内的文件进行更改，请放心使用**
     - 与`mars`对拍时，文件夹下的每一个子文件夹作为一个CPU项目测评
     - 相互对拍也同理
-- `FlowGenerator.py`
-  - 生成流水线测试数据
-- `Generator.py`
-  - 生成单周期单元测试数据
+- `util`
+  - 工具包，里面有各种测评机运行的工具
+  - **请确保他们都在！！！！**
+  - 魔改版的mars
+  - ~~logisim改版（为了压缩可能删了）~~
+  - test_main.txt
+  - dissam.exe（tsxb提供的反汇编器）
+  - mips_tb1.txt
+  - mips_tb2.txt
+  - 可能还有我找到的学长的数据生成器，看起来效果还行
+- `DataMaker.py`
+  - 生成单元测试数据
     - 通过对某一类指令强数据测试达到目的
-    - 使用已测试过的指令测试，所以需要按照顺序单元测试`lui、ori -> add、sub -> lw、sw -> beq -> (jal/jr) -> nop`
-  - 提供随机测试的部分函数
-    - 部分指令采取代码块的方式给出，对于流水线数据仍需改进
+    - 使用已测试过的指令测试，所以需要按照顺序单元测试
+    - 可以对单周期完备测试、对流水线数据通路测试
+  - 生成随机测试数据
+    - 枚举指令序列进行转发暂停测试
+    - 某些极度奇怪的转发无法测试例如
+      - `lw -> jr` `slt -> jr` `sltu -> jr`
 - `Runner.py`
   - 下辖三个类`Runner`、`LogisimRunner`、`XilinxRunner`是测评机的运行类
   - 提供加强的os函数，可在`Linux`与`Windows`上流畅运行
@@ -100,3 +164,37 @@
   - 如果出现bug，将会留下出现bug的一部分提供给使用者
 - `start.py`
   - 测评机主体文件，运行此文件即可
+---
+### 运行时文件夹
+- 如果你的CPU们在运行是发生错误，你将会得到一个测评文件夹，大致目录如下
+```
+  |- year-month-day-time-src-mtd
+    |- random/unit
+    |- stdout
+    |- hex
+    |- log
+    |- dif
+```
+- random/unit
+  - 存放了本次生成的所有数据（.asm）
+- stdout
+  - 如果你和mars对拍，将会得到mars的标准输出
+- hex
+  - 你的数据转为的16进制码
+- log
+  - 你的CPU们运行后留下的日志
+- dif
+  - CPU与mars的差异或者CPU们的差异
+  - 第一行错误将指认为log与stdout中输出差异即753行
+  - 随后指出是哪一个指令执行有问题，并给出该指令在random/stdout中的位置即1290行
+  - 最后给出最近一条完全一致的命令与输出
+  ```log
+    First error in line 753
+    ------the first different Mips code "ac05000c"-----
+    Mips Code: "sw $5, 12($0)" in line 1290
+    Mars: "@00004044: *0000000c <= 00000044"
+    wtycpu: "@00004044: *0000000c <= 00000000"
+    ---------------------------------------
+    the most recent same Mips code output is: "lw $5, 9($31)" in line 1289 
+    the most recent same Mips code output is: "@00004040: $ 5 <= 00000044"
+  ```
