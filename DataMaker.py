@@ -2,23 +2,11 @@ import os
 import numpy as np
 
 class DataMaker:
-    def __init__(self, the_class, the_unit):
-        # self.__class = {
-        #     "cal_r": ['add', 'sub'],
-        #     "cal_i": ['ori'],
-        #     "lui": ['lui'],
-        #     "store": ['sw'],
-        #     "load": ['lw'],
-        #     "branch": ['beq'],
-        #     "j_l": ['jal'],
-        #     "j_r": ['jr'],
-        #     "nop": ['nop']
-        # }
+    def __init__(self, the_class, the_unit, is_flow):
         self.__class = the_class
-
         self.__unit = the_unit
         self.__log = []
-
+        self.__flow = is_flow
         # self.__nojump = ["cal_r", "cal_i", "lui", "store", "load", "j_l", "j_r", "nop", "md", "mt", "mf"]
         self.__all_regs = [i for i in range(32)]
         self.__get_regs()
@@ -28,12 +16,18 @@ class DataMaker:
     def __init_pymars(self):
         self.__pc = 0
         self.__mips = []
+        self.__tb = []
         self.__unused = []
         self.__count = 0
         self.__grf = [0 for _ in range(32)] 
-        self.__dm = [0 for _ in range(3072)]
+        self.__dm = [0 for _ in range(8136)]
         self.__hi = 0
         self.__lo = 0
+        self.__cp0 = {
+            12: 0,
+            13: 0,
+            14: 0,
+        }
 
     def __get_pc(self) :
         return int("3000", 16) + self.__pc * 4
@@ -41,7 +35,12 @@ class DataMaker:
     def __get_regs(self) :
         regs = list(range(1, 31))
         # test_regs
-        self.__test_regs = np.random.choice(regs, 3, replace=False)
+        test_reg_num = 0
+        if self.__flow:
+            test_reg_num = 3
+        else:
+            test_reg_num = 14
+        self.__test_regs = np.random.choice(regs, test_reg_num, replace=False)
 
         for test_reg in self.__test_regs :
             regs.remove(test_reg)
@@ -60,6 +59,10 @@ class DataMaker:
 
 
     def __create_jarea(self) :
+        used_regs:list = list(self.__test_regs)[:]
+        used_regs.extend(list(self.__jump_regs)[:])
+        for _ in range(16) :
+            self.__mips.append(self.ori(0, np.random.choice(used_regs), np.random.randint(0, 65535)))
         self.__mips.append(f"Jarea:\n")
         self.__mips.append(self.beq(0, 0, "JareaEnd"))
         initial = []
@@ -82,6 +85,11 @@ class DataMaker:
         self.__mips.append("JareaEnd:\n")
         # print(mips)
         return initial
+
+    def __end(self):
+        self.__mips.append("End:\n")
+        self.__mips.append(self.beq(0, 0, "End"))
+        self.__mips.append(self.nop())
 
     def __create_test(self, jump_initial) :
         times = 4
@@ -214,14 +222,14 @@ class DataMaker:
             off = off << 2
             self.__mips.append(self.sw(0, np.random.choice(the_new), off))
 
-    def random_test(self, max_time, path="test.asm") :
+    def trans_test(self, max_time, path="test.asm") :
         self.__init_pymars()
         jump_initial = self.__create_jarea()
         self.__init_regs(jump_initial)
         self.__init_dm()
         while len(self.__mips) <= max_time:
             self.__create_test(jump_initial)
-
+        # self.__end()
         with open(path, "w", encoding="utf-8") as file:
             file.writelines(self.__mips)
 
@@ -318,7 +326,10 @@ class DataMaker:
         elif mtd_class == "j_l":
             the_return = [mtd(offset, flag), 31]
         elif mtd_class == "j_r":
-            the_return = [mtd(rs), rs]
+            if self.__flow:
+                the_return = [mtd(rs), rs]
+            else:
+                the_return = [self.nop(), rs]
         elif mtd_class == "md":
             the_return = [mtd(rs, rt, flag), rs]
         elif mtd_class == "mf":
@@ -354,7 +365,7 @@ class DataMaker:
             mtd = getattr(self, mtd_name, None)
             if mtd_name in self.__class['lui']:
                 self.__mips.append(mtd(rt, offset))
-            elif mtd_name in self.__class["mt"] or mtd_name in self.__class["mf"]:
+            elif "mt" in mtd_name or "mf" in mtd_name:
                 if len(self.__mips) > ((times * 2) // 3) :
                     self.__mips.append(mtd(rs))
             else:
@@ -424,7 +435,7 @@ class DataMaker:
                 mtd(rt)
             mtd_name = np.random.choice(the_test)
             mtd = getattr(self, mtd_name, None)
-            if mtd_name in self.__class["md"]:
+            if "div" in mtd_name or "mult" in mtd_name:
                 if len(self.__mips) > (times // 2):
                     flag = True
                     if "div" in mtd_name and self.__grf[rt] == 0:
@@ -599,13 +610,23 @@ class DataMaker:
         
         return self.__mips
 
-    def unit_test(self, times, test_dir="."):
+    def unit_test(self, times, is_exc, the_type, test_dir="."):
+        if is_exc:
+            times = 1000
         self.set_test(times)
+        if is_exc:
+            self.__add_end()
+            self.__add_handler()
         with open(os.path.join(test_dir, "set_test.asm"), "w", encoding="utf-8") as file:
             file.writelines(self.__mips)
         self.__mips = []
 
+        if is_exc:
+            times = 1000
         self.arth_test(times)
+        if is_exc:
+            self.__add_end()
+            self.__add_handler()
         with open(os.path.join(test_dir, "arth_test.asm"), "w", encoding="utf-8") as file:
             file.writelines(self.__mips)
         self.__mips = []
@@ -619,12 +640,659 @@ class DataMaker:
         with open(os.path.join(test_dir, "branch_test.asm"), "w", encoding="utf-8") as file:
             file.writelines(self.__mips)
         self.__mips = []
+        
+        if the_type == "verilog":
+            self.jump_test(times)
+            with open(os.path.join(test_dir, "jump_test.asm"), "w", encoding="utf-8") as file:
+                file.writelines(self.__mips)
+            self.__mips = []
 
-        self.jump_test(times)
-        with open(os.path.join(test_dir, "jump_test.asm"), "w", encoding="utf-8") as file:
+    def __add_handler(self):
+        contents = []
+        with open(os.path.join("util", "handler.asm"), "r", encoding="utf-8") as handler:
+            contents = handler.readlines()
+        
+        mips = self.__mips[:]
+        mips = [code for code in mips if code.strip() != ""]
+        mips = [code for code in mips if code.strip()[-1] != ":"]
+        mips = [code for code in mips if code.strip()[0] != "#"]
+        
+        nops = ["nop\n" for _ in range(1120 - len(mips))]
+        self.__mips.extend(nops)
+        self.__mips.extend(contents)
+
+    def __add_end(self):
+        self.__mips.append("end:\n")
+        self.__mips.append(self.beq(0, 0, "end"))
+        self.__mips.append(self.nop())
+
+    def ov_test(self, times):
+        test = ["add", "sub", "addi"]
+        lens = len(self.__mips)
+        while len(self.__mips) - lens < times:
+            md_choice = np.random.randint(0, 2)
+            mt_choice = np.random.randint(0, 2)
+
+            now = len(self.__mips)
+            rs = np.random.randint(1, 31)
+            rt = np.random.randint(1, 31)
+            rd = np.random.randint(1, 31)
+            imm = 0
+            mtd_name = np.random.choice(test)
+            mtd = getattr(self, mtd_name, None)
+            choice = np.random.randint(0, 2)
+            inf_choice = np.random.randint(0, 3)
+            if mtd_name == "addi":
+                self.__set_inf_32bits(rs)
+                imm = np.random.randint(0, 20)
+            else:
+                if inf_choice == 0:
+                    self.__set_inf_32bits(rs)
+                    self.__set_zero(rt)
+                elif inf_choice == 1:
+                    self.__set_inf_16bits(rs)
+                    self.__set_inf_16bits(rt)
+                elif inf_choice == 2:
+                    self.__set_random_32bits(rs)
+                    self.__set_random_32bits(rt)
+                else:
+                    self.__set_inf_32bits(rs)
+                    self.__set_inf_32bits(rt)
+            if md_choice == 0:
+                self.__mips.append(self.multu(rs, rt))
+            if choice == 0:
+                self.__mips.append(self.jal(f"label{now}"))
+
+            if mtd_name == "addi":
+                self.__mips.append(mtd(rs, rt, imm))
+            else:
+                self.__mips.append(mtd(rs, rt, rd))
+
+            if choice == 0:
+                self.__mips.append(f"label{now}:\n")
+            if mt_choice == 0:
+                self.__mips.append(self.mtlo(rs))
+            self.__mips.append(self.mflo(rs))
+    
+    def pc_error_test(self, times):
+        lens = len(self.__mips)
+        while len(self.__mips) - lens < times:
+            md_choice = np.random.randint(0, 2)
+            mt_choice = np.random.randint(0, 2)
+
+            the_len = len(self.__mips)
+            choice = np.random.randint(0, 4)
+            self.__mips.append(self.beq(0, 0, f"ToJal{the_len}"))
+            self.__mips.append(self.nop())
+            self.__mips.append(f"ToJr{the_len}:\n")
+            if choice == 0:
+                self.__mips.append(self.sw(0, 31, 8576))
+                self.__mips.append(self.ori(0, 31, np.random.randint(0, 12200)))
+            elif choice == 1:
+                self.__mips.append(self.sw(0, 31, 8576))
+                self.__mips.append(self.ori(0, 31, np.random.randint(28680, 65000)))
+            elif choice == 2:
+                self.__mips.append(self.addi(31, 31, np.random.randint(-3, 3)))
+
+            if md_choice == 0:
+                self.__mips.append(self.multu(31, 31))
+            self.__mips.append(self.jr(31))
+            self.__mips.append(self.mtlo(31))
+            self.__mips.append(f"ToJal{the_len}:\n")
+            self.__mips.append(self.jal(f"ToJr{the_len}"))
+            self.__mips.append(self.mflo(1))
+            self.__mips.append(self.mflo(2))
+
+    def adel_test(self, times):
+        test = ["lw", "lh", "lb"]
+        lens = len(self.__mips)
+        
+        while len(self.__mips) - lens < times:
+            md_choice = np.random.randint(0, 2)
+            mt_choice = np.random.randint(0, 2)
+
+            now = len(self.__mips)
+            choice = np.random.randint(0, 2)
+            dest_choice = np.random.randint(0, 6)
+            off_choice = np.random.randint(0, 3)
+            mtd_name = np.random.choice(test)
+            mtd = getattr(self, mtd_name, None)
+            dest = 0
+            dests = []
+            if dest_choice == 0:
+                dests.append(np.random.randint(-2, 5))
+                dests.append(np.random.randint(12280, 12300))
+                dest = np.random.choice(dests)            
+            elif dest_choice == 1:
+                dests.append(np.random.randint(32509, 32512))
+                dests.append(np.random.randint(32524, 32528))
+                dests.append(np.random.randint(32540, 32544))
+                dests.append(np.random.randint(32548, 32562))
+                dest = np.random.choice(dests)
+            elif dest_choice == 2:
+                dests.append(np.random.randint(32512, 32524))
+                dests.append(np.random.randint(32528, 32540))
+                dests.append(np.random.randint(32544, 32548))
+                dest = np.random.choice(dests)
+            elif dest_choice == 3:
+                dest = 2147483649
+            else:
+                dests.append(np.random.randint(0, 12288))
+                dests.append(np.random.choice([32512, 32528, 32544]))
+                dest = np.random.choice(dests)
+            
+            if off_choice == 0:
+                dest = dest >> 1
+                dest = dest << 1
+            elif off_choice == 1:
+                dest = dest >> 2
+                dest = dest << 2
+
+            rs = np.random.randint(1, 31)
+            rt = np.random.randint(1, 31)
+            imm = np.random.randint(50, 100)
+            the_set = dest - imm
+            self.__set(rs, the_set)
+            if md_choice == 0:
+                self.__mips.append(self.multu(rs, rt))
+            if choice == 0:
+                self.__mips.append(self.jal(f"label{now}"))
+            self.__mips.append(mtd(rs, rt, imm, False))
+            if choice == 0:
+                self.__mips.append(f"label{now}:\n")
+            if mt_choice == 0:
+                self.__mips.append(self.mtlo(rs))
+            self.__mips.append(self.mflo(rs))
+
+    def ades_test(self, times):
+        test = ["sw", "sb", "sh"]
+        lens = len(self.__mips)
+
+        while len(self.__mips) - lens < times:
+            md_choice = np.random.randint(0, 2)
+            mt_choice = np.random.randint(0, 2)
+
+            now = len(self.__mips)
+            choice = np.random.randint(0, 2)
+            dest_choice = np.random.randint(0, 6)
+            off_choice = np.random.randint(0, 3)
+            mtd_name = np.random.choice(test)
+            mtd = getattr(self, mtd_name, None)
+            dest = 0
+
+            dests = []
+            if dest_choice == 0:
+                dests.append(np.random.randint(-2, 5))
+                dests.append(np.random.randint(12280, 12300))
+                dest = np.random.choice(dests)            
+            elif dest_choice == 1:
+                dests.append(np.random.randint(32509, 32512))
+                dests.append(np.random.randint(32524, 32528))
+                dests.append(np.random.randint(32540, 32544))
+                dests.append(np.random.randint(32548, 32562))
+                dest = np.random.choice(dests)
+            elif dest_choice == 2:
+                dests.append(np.random.randint(32512, 32524))
+                dests.append(np.random.randint(32528, 32540))
+                dests.append(np.random.randint(32544, 32548))
+                dest = np.random.choice(dests)
+            elif dest_choice == 3:
+                dest = 2147483649
+            else:
+                dests.append(np.random.randint(0, 12288))
+                dests.append(np.random.choice([32512, 32528, 32544]))
+                dest = np.random.choice(dests)
+            
+            if off_choice == 0:
+                dest = dest >> 1
+                dest = dest << 1
+            elif off_choice == 1:
+                dest = dest >> 2
+                dest = dest << 2
+
+            rs = np.random.randint(1, 31)
+            rt = np.random.randint(1, 31)
+            imm = np.random.randint(50, 100)
+            the_set = dest - imm
+            
+            # clock = ["9", "b", "8", "a"]
+            clock = ["9", "8", "a"]
+            end = np.random.choice(clock)
+            to_set = "".join([*[f"{int(np.random.randint(0, 16)):x}" for _ in range(3)], end])
+            to_set = int(to_set, 16)
+            self.__set(rt, to_set)
+            self.__set(rs, the_set)
+            if md_choice == 0:
+                self.__mips.append(self.multu(rs, rt))
+            if choice == 0:
+                self.__mips.append(self.jal(f"label{now}"))
+            self.__mips.append(mtd(rs, rt, imm, False))
+            if choice == 0:
+                self.__mips.append(f"label{now}:\n")
+            if mt_choice == 0:
+                self.__mips.append(self.mtlo(rs))
+            self.__mips.append(self.mflo(rs))
+
+    def ri_test(self, times):
+
+        ri_code = [
+            "add.d $f1, $f2, $f3\n",
+            "add.s $f1, $f2, $f3\n",
+            "abs.d $f1, $f2\n",
+            "abs.s $f1, $f2\n",
+            "mov.d $f1, $f2\n",
+            "mov.s $f1, $f2\n"
+        ]
+        lens = len(self.__mips)
+        while len(self.__mips) - lens < times:
+            md_choice = np.random.randint(0, 2)
+            mt_choice = np.random.randint(0, 2)
+            
+            now = len(self.__mips)
+            choice = np.random.randint(0, 2)
+            rs = np.random.randint(0, 31)
+            rt = np.random.randint(0, 31)
+            rd = np.random.randint(0, 31)
+            if md_choice == 0:
+                self.__mips.append(self.multu(rs, rt))
+            if choice == 0:
+                self.__mips.append(self.jal(f"label{now}"))
+            self.__mips.append(np.random.choice(ri_code))
+            self.__pc += 1
+            if choice == 0:
+                self.__mips.append(f"label{now}:\n")
+            if mt_choice == 0:
+                self.__mips.append(self.mtlo(rs))
+            self.__mips.append(self.mfhi(rs))
+            self.__mips.append(self.mflo(rd))
+            self.__mips.append(self.ori(0, rt, np.random.randint(0, 65535)))
+
+    def syscall_test(self, times):
+        lens = len(self.__mips)
+        while len(self.__mips) - lens < times:
+            md_choice = np.random.randint(0, 2)
+            mt_choice = np.random.randint(0, 2)
+            
+            now = len(self.__mips)
+            choice = np.random.randint(0, 2)
+            rs = np.random.randint(0, 31)
+            rt = np.random.randint(0, 31)
+            rd = np.random.randint(0, 31)
+            if md_choice == 0:
+                self.__mips.append(self.multu(rs, rt))
+            if choice == 0:
+                self.__mips.append(self.jal(f"label{now}"))
+            self.__mips.append(self.syscall())
+            if choice == 0:
+                self.__mips.append(f"label{now}:\n")
+            if mt_choice == 0:
+                self.__mips.append(self.mtlo(rs))
+            self.__mips.append(self.mfhi(rs))
+            self.__mips.append(self.mflo(rd))
+            self.__mips.append(self.ori(0, rt, np.random.randint(0, 65535)))
+        
+        
+    def exc_test(self, times, forbidden=True, _dir="."):
+        self.__init_pymars()
+        self.ov_test(times)
+        self.__add_end()
+        self.__add_handler()
+        with open(os.path.join(_dir, "ov_test.asm"), "w", encoding="utf-8") as file:
             file.writelines(self.__mips)
-        self.__mips = []
+        
+        self.__init_pymars()
+        self.pc_error_test(times)
+        self.__add_end()
+        self.__add_handler()
+        with open(os.path.join(_dir, "pc_error_test.asm"), "w", encoding="utf-8") as file:
+            file.writelines(self.__mips)
 
+        self.__init_pymars()
+        self.adel_test(times)
+        self.__add_end()
+        self.__add_handler()
+        with open(os.path.join(_dir, "adel_test.asm"), "w", encoding="utf-8") as file:
+            file.writelines(self.__mips)
+
+        self.__init_pymars()
+        self.ades_test(times)
+        self.__add_end()
+        self.__add_handler()
+        with open(os.path.join(_dir, "ades_test.asm"), "w", encoding="utf-8") as file:
+            file.writelines(self.__mips)
+
+        self.__init_pymars()
+        self.syscall_test(times)
+        self.__add_end()
+        self.__add_handler()
+        with open(os.path.join(_dir, "syscl_test.asm"), "w", encoding="utf-8") as file:
+            file.writelines(self.__mips)
+
+        if not forbidden:
+            self.__init_pymars()
+            self.ri_test(times)
+            self.__add_end()
+            self.__add_handler()
+            with open(os.path.join(_dir, "ri_test.asm"), "w", encoding="utf-8") as file:
+                file.writelines(self.__mips)
+
+    def __write_tb(self, path="tb.v"):
+        ind = 0
+        origin = []
+        contents = []
+        with open(os.path.join("util", "mips_tb_4.v"), "r", encoding="utf-8") as file:
+            origin = file.readlines()
+        contents = [content.strip() for content in origin]
+        insert = contents.index("if (interrupt) begin") + 5
+        sep = origin[insert - 5].replace("if (interrupt) begin\n", "")
+        for target in self.__tb:
+            template = [
+                f"else if (fixed_macroscopic_pc == 32\'h{target:08x} && count == {ind}) begin\n",
+				f"\tcount = {ind + 1};\n",
+				"\tinterrupt = 1;\n",
+			    "end\n"
+            ]
+            for temp in template:
+                origin.insert(insert, sep+temp)
+                insert += 1
+            ind += 1
+        with open(path, "w", encoding="utf-8") as file:
+            file.writelines(origin)
+
+    def md_int_test(self, times, noTimer, noInterrupt):
+        self.__mips.append(self.ori(0, 1, 0xfe01))
+        self.__mips.append(self.mtc0(1, 12))
+        lens = len(self.__mips)
+        while len(self.__mips) - lens < times:
+            now = len(self.__mips)
+            int_choice = np.random.randint(0, 3)
+            md_choice = np.random.randint(0, 3)
+            choice = np.random.randint(0, 2)
+            rs = np.random.randint(2, 25)
+            rt = np.random.randint(2, 25)
+            self.__mips.append(self.ori(0, rs, np.random.randint(0, 65535)))
+            self.__mips.append(self.ori(0, rt, np.random.randint(0, 65535)))
+            if noTimer:
+                int_choice = 0
+            elif noInterrupt and int_choice == 0:
+                int_choice = np.random.randint(1, 3)
+            if int_choice == 0:
+                if choice == 0:
+                    self.__mips.append(self.jal(f"label{now}"))
+                pc = self.__get_pc()
+                self.__mips.append(self.multu(rs, rt))
+                if choice == 0:
+                    self.__mips.append(f"label{now}:\n")
+                self.__mips.append(self.nop())
+                self.__mips.append(self.mfhi(rs))
+                self.__mips.append(self.mflo(rt))
+                pc = pc + 4 if md_choice == 1 else pc
+                pc = pc - 4 if md_choice == 2 else pc
+                self.__tb.append(pc)
+            else:
+                dist = 32512 if int_choice == 1 else 32528
+                clock = ["9", "8"]
+                end = np.random.choice(clock)
+                to_set = "".join([*[f"{int(np.random.randint(0, 16)):x}" for _ in range(3)], end])
+                to_set = int(to_set, 16)
+                self.__set(rt, to_set)
+                self.__set(rs, dist)
+                self.__mips.append(self.sw(rs, rt, 0))                
+                self.__mips.append(self.nop())
+                for _ in range(md_choice):
+                    self.__mips.append(self.nop())
+                if choice == 0:
+                    self.__mips.append(self.jal(f"label{now}"))                
+                self.__mips.append(self.multu(rs, rs))
+                if choice == 0:
+                    self.__mips.append(f"label{now}:\n")
+                self.__mips.append(self.ori(0, rs, 0))
+                self.__mips.append(self.mfhi(rs))
+                self.__mips.append(self.mflo(rt))
+
+    def store_int_test(self, times, noTimer, noInterrupt):
+        self.__mips.append(self.ori(0, 1, 0xfe01))
+        self.__mips.append(self.mtc0(1, 12))
+        lens = len(self.__mips)
+        while len(self.__mips) - lens < times:
+            now = len(self.__mips)
+            int_choice = np.random.randint(0, 3)
+            choice = np.random.randint(0, 2)
+            rs = np.random.randint(2, 25)
+            rt = np.random.randint(2, 25)
+            imm = np.random.randint(0, 12000) >> 1
+            imm = imm << 1
+            self.__mips.append(self.ori(0, rs, imm))
+            self.__mips.append(self.ori(0, rt, np.random.randint(0, 65535)))
+            if noTimer:
+                int_choice = 0
+            elif noInterrupt and int_choice == 0:
+                int_choice = np.random.randint(1, 3)
+            if int_choice == 0:
+                if choice == 0:
+                    self.__mips.append(self.jal(f"label{now}"))
+                pc = self.__get_pc()
+                self.__mips.append(self.sw(0, rt, imm, False))
+                if choice == 0:
+                    self.__mips.append(f"label{now}:\n")
+                self.__mips.append(self.nop())
+                self.__mips.append(self.mfhi(rs))
+                self.__mips.append(self.mflo(rt))
+                self.__tb.append(pc)
+            else:
+                dist = 32512 if int_choice == 1 else 32528
+                clock = ["9", "8"]
+                end = np.random.choice(clock)
+                to_set = "".join([*[f"{int(np.random.randint(0, 16)):x}" for _ in range(3)], end])
+                to_set = int(to_set, 16)
+                self.__set(rt, to_set)
+                self.__set(rs, dist)
+                self.__mips.append(self.sw(rs, rt, 0))                
+                self.__mips.append(self.nop())
+                self.__mips.append(self.nop())
+                if choice == 0:
+                    self.__mips.append(self.jal(f"label{now}"))         
+                else:
+                    self.__mips.append(self.nop())       
+                self.__mips.append(self.sw(0, rt, imm, False))
+                if choice == 0:
+                    self.__mips.append(f"label{now}:\n")
+                self.__mips.append(self.ori(0, rs, 0))
+                self.__mips.append(self.mfhi(rs))
+                self.__mips.append(self.mflo(rt))
+
+    def jump_int_test(self, times, noTimer, noInterrupt):
+        self.__mips.append(self.ori(0, 1, 0xfe01))
+        self.__mips.append(self.mtc0(1, 12))
+        lens = len(self.__mips)
+        while len(self.__mips) - lens < times:
+            now = len(self.__mips)
+            choice = np.random.randint(0, 2)
+            rs = np.random.randint(2, 25)
+            rt = np.random.randint(2, 25)
+            imm = np.random.randint(0, 12000) >> 1
+            imm = imm << 1
+            int_choice = np.random.randint(0, 3)
+            if noTimer:
+                int_choice = 0
+            elif noInterrupt and int_choice == 0:
+                int_choice = np.random.randint(1, 3)
+            if int_choice == 0:
+                self.__mips.append(self.ori(0, rs, imm))
+                self.__mips.append(self.ori(0, rt, imm))
+                if choice == 0:
+                    self.__mips.append(self.ori(0, rs, imm + 1))
+                self.__mips.append(self.beq(rs, rt, f"ToJal{now}"))
+                self.__tb.append(self.__get_pc())
+                self.__mips.append(self.ori(0, 31, np.random.randint(0, 2000)))
+                self.__mips.append(f"ToJr{now}:\n")
+                self.__mips.append(self.ori(0, 1, self.__get_pc() + 24))
+                self.__mips.append(self.sw(0, 1, 0x2180))
+                self.__tb.append(self.__get_pc())
+                self.__mips.append(self.jr(31))
+                self.__mips.append(self.nop())
+                self.__mips.append(f"ToJal{now}:\n")
+                self.__mips.append(self.jal(f"ToJr{now}"))
+                self.__mips.append(self.nop())
+                self.__tb.append(self.__get_pc())
+                self.__mips.append(self.ori(0, rs, 0))
+            else:
+                dist = 32512 if int_choice == 1 else 32528
+                clock = ["9", "8"]
+                end = np.random.choice(clock)
+                to_set = "".join([*[f"{int(np.random.randint(0, 16)):x}" for _ in range(3)], end])
+                to_set = int(to_set, 16)
+                self.__set(rt, to_set)
+                self.__set(rs, dist)
+                self.__mips.append(self.sw(rs, rt, 0))              
+                self.__mips.append(self.nop())
+                self.__mips.append(self.nop())
+                self.__mips.append(self.beq(rs, 0, f"ToJal{now}"))
+                self.__mips.append(self.ori(0, 31, np.random.randint(0, 2000)))
+                self.__mips.append(f"ToJr{now}:\n")
+                self.__mips.append(self.ori(0, 1, self.__get_pc() + 40))
+                self.__mips.append(self.sw(0, 1, 0x2180))
+                self.__mips.append(self.sw(rs, rt, 0))              
+                self.__mips.append(self.nop())
+                self.__mips.append(self.nop())
+                self.__mips.append(self.nop())
+                self.__mips.append(self.jr(31))
+                self.__mips.append(self.nop())
+                self.__mips.append(f"ToJal{now}:\n")
+                self.__mips.append(self.jal(f"ToJr{now}"))
+                self.__mips.append(self.nop())
+                self.__mips.append(self.ori(0, rs, 0))                  
+                
+    def stall_int_test(self, times, noTimer, noInterrupt):
+        self.__mips.append(self.ori(0, 1, 0xfe01))
+        self.__mips.append(self.mtc0(1, 12))
+        lens = len(self.__mips)
+        while len(self.__mips) - lens < times:
+            now = len(self.__mips)
+            int_choice = np.random.randint(0, 3)
+            choice = np.random.randint(0, 3)
+            rs = np.random.randint(2, 25)
+            rt = np.random.randint(2, 25)
+            imm = np.random.randint(0, 14000) >> 2
+            imm = imm << 2
+            if noTimer:
+                int_choice = 0
+            elif noInterrupt and int_choice == 0:
+                int_choice = np.random.randint(1, 3)
+            if int_choice == 0:
+                self.__mips.append(self.ori(0, rs, imm))
+                self.__mips.append(self.ori(0, rt, imm))
+                self.__mips.append(self.sw(rs, rt, 0))
+                self.__mips.append(self.lw(rs, rt, 0))
+                if choice >= 1:
+                    self.__mips.append(self.nop())
+                if choice >= 2:
+                    self.__mips.append(self.nop())
+                self.__tb.append(self.__get_pc())
+                self.__mips.append(self.beq(rs, rt, f"label{now}"))
+                self.__mips.append(self.nop())
+                self.__mips.append(f"label{now}:\n")
+                self.__mips.append(self.ori(0, rs, imm))
+            else:
+                dist = 32512 if int_choice == 1 else 32528
+                clock = ["9", "8"]
+                end = np.random.choice(clock)
+                to_set = "".join([*[f"{int(np.random.randint(0, 16)):x}" for _ in range(3)], end])
+                to_set = int(to_set, 16)
+                self.__set(rt, to_set)
+                self.__set(rs, dist)
+                self.__mips.append(self.sw(rs, rt, 0))                
+                self.__mips.append(self.lw(rs, rt ,0))
+                if choice >= 1:
+                    self.__mips.append(self.nop())
+                if choice >= 2:
+                    self.__mips.append(self.nop())
+                self.__mips.append(self.beq(rs, rt, f"label{now}"))
+                self.__mips.append(self.nop())
+                self.__mips.append(f"label{now}:\n")
+                self.__mips.append(self.ori(0, rs, imm))
+
+
+    def int_test(self, times, noTimer=False, noInterrupt=False, _dir=".", tb_dir="."):
+        self.__init_pymars()
+        self.md_int_test(times, noTimer, noInterrupt)
+        self.__add_end()
+        self.__add_handler()
+        if self.__tb != []:
+            self.__write_tb(os.path.join(tb_dir, "md_int_test_tb.v"))
+        with open(os.path.join(_dir, "md_int_test.asm"), "w", encoding="utf-8") as file:
+            file.writelines(self.__mips)
+
+        self.__init_pymars()
+        self.store_int_test(times, noTimer, noInterrupt)
+        self.__add_end()
+        self.__add_handler()
+        if self.__tb != []:
+            self.__write_tb(os.path.join(tb_dir, "store_int_test_tb.v"))
+        with open(os.path.join(_dir, "store_int_test.asm"), "w", encoding="utf-8") as file:
+            file.writelines(self.__mips)
+
+        self.__init_pymars()
+        self.jump_int_test(times, noTimer, noInterrupt)
+        self.__add_end()
+        self.__add_handler()
+        if self.__tb != []:
+            self.__write_tb(os.path.join(tb_dir, "jump_int_test_tb.v"))
+        with open(os.path.join(_dir, "jump_int_test.asm"), "w", encoding="utf-8") as file:
+            file.writelines(self.__mips)
+
+        self.__init_pymars()
+        self.stall_int_test(times, noTimer, noInterrupt)
+        self.__add_end()
+        self.__add_handler()
+        if self.__tb != []:
+            self.__write_tb(os.path.join(tb_dir, "stall_int_test_tb.v"))
+        with open(os.path.join(_dir, "stall_int_test.asm"), "w", encoding="utf-8") as file:
+            file.writelines(self.__mips)
+
+    def __exc_random(self, times, forbidden=False, path="test.asm"):
+        self.__init_pymars()
+        test = ["ov_test", "pc_error_test", "adel_test", "ades_test"]
+        if not forbidden:
+            test.append("ri_test")
+        if times > 1000:
+            times = 1000
+        while len(self.__mips) < times:
+            mtd_name = np.random.choice(test)
+            mtd = getattr(self, mtd_name, None)
+            mtd(1)
+        self.__add_end()
+        self.__add_handler()
+        with open(path, "w", encoding="utf-8") as file:
+            file.writelines(self.__mips)
+
+    def __int_random(self, times, path="test.asm"):
+        self.__init_pymars()
+        test = ["md_int_test", "store_int_test", "jump_int_test", "stall_int_test"]
+        if times > 1000:
+            times = 1000
+        while len(self.__mips) < times:
+            mtd_name = np.random.choice(test)
+            mtd = getattr(self, mtd_name, None)
+            mtd(1, False, True)
+        self.__add_end()
+        self.__add_handler()
+        with open(path, "w", encoding="utf-8") as file:
+            file.writelines(self.__mips)
+
+    def random_test(self, times, is_exc, forbidden=False, path="test.asm"):
+        choice = np.random.randint(0, 3)
+        if forbidden and choice == 2:
+            choice = np.random.randint(0, 2)
+        if not is_exc:
+            choice = 0
+        if choice == 0:
+            self.trans_test(times, path)
+        elif choice == 1:
+            self.__exc_random(times, forbidden, path)
+        elif choice == 2:
+            self.__int_random(times, path)
+            
 
     def __ignore_overflow(self, number) -> int:
         number = number & 0xffffffff
@@ -871,6 +1539,28 @@ class DataMaker:
             # self.__log.append(f"mfhi ${rs}: lo <= {self.__ignore_overflow(self.__grf[rs]):#x}\n")
         return f"mtlo ${rs}\n"
 
+    def mtc0(self, rs, rd, flag=True) -> str :
+        self.__pc += 1
+        if flag:
+            if rd == 12 or rd == 14:
+                self.__cp0[rd] = self.__ignore_overflow(self.__grf[rs])
+        return f"mtc0 ${rs}, ${rd}\n"
+    
+    def mfc0(self, rs, rd, flag=True) -> str :
+        self.__pc += 1
+        if flag:
+            if rd >= 12 and rd <= 14:
+                self.__grf[rs] = self.__ignore_overflow(self.__cp0[rd])
+        return f"mtc0 ${rs}, ${rd}\n"
+    
+    def syscall(self) -> str :
+        self.__pc += 1
+        return "syscall\n"
+
+    def eret(self) -> str :
+        self.__pc += 1
+        return "eret\n"
+ 
     def beq(self, rs, rt, offset) -> str :
         self.__pc += 1
         return f"beq ${rs}, ${rt}, {offset}\n"
@@ -886,7 +1576,10 @@ class DataMaker:
     def jal(self, offset, flag=True) -> str :
         self.__pc += 1
         if flag:
-            self.__grf[31] = self.__ignore_overflow(self.__get_pc() + 4)
+            if self.__flow :
+                self.__grf[31] = self.__ignore_overflow(self.__get_pc() + 4)
+            else :
+                self.__grf[31] = self.__ignore_overflow(self.__get_pc())
             # self.__log.append(f"jal {offset}: 31 <= {self.__ignore_overflow(self.__get_pc() + 4):#x}\n")
         return f"jal {offset}\n"
 
@@ -896,12 +1589,36 @@ class DataMaker:
 
 
 if __name__ == "__main__" :
-    datamaker = DataMaker()
+    __class = {
+            "cal_r": ["add", "sub", "and", "or", "slt", "sltu"],
+            "cal_i": ["ori", "addi", "andi"],
+            "lui": ["lui"],
+            "store": ["sw", "sb", "sh"],
+            "load": ["lw", "lb", "lh"],
+            "branch": ["beq", "bne"],
+            "md": ["mult", "multu", "div", "divu"],
+            "mf": ["mfhi", "mflo"],
+            "mt": ["mthi", "mtlo"],
+            "j_l": ["jal"],
+            "j_r": ["jr"],
+            "nop": ["nop"]
+        }
+
+    __unit = {
+            "set_test": ["cal_i", "lui", "mt", "mf"],
+            "arth_test": ["cal_r", "md"],
+            "mem_test": ["store", "load"],
+            "branch_test": ["branch"],
+            "jump_test": ["j_l", "j_r"]
+        }
+    datamaker = DataMaker(__class, __unit, True)
     # datamaker.get_regs()
     # lui = datamaker.method("lui")(1, 32223)
     # print(lui)
     # datamaker.random_test(3600)
-    datamaker.unit_test(4000)
+    # datamaker.unit_test(4000)
+    # datamaker.exc_test(1000)
+    # datamaker.int_test(1000)
     # print(int("7fffffff", 16))
     # print(-int("80000000", 16))
     # print(datamaker.ignore_overflow(-2147483649))

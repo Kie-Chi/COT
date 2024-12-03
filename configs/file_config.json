@@ -1,34 +1,14 @@
 {
     "type": "verilog",
-    "is_flow": true,
+    "flow": true,
+    "exc": true,
+    "tb": 3,
+    "test_times": 1,
     "xilinx_path": "D:\\Xilinx\\14.7\\ISE_DS\\ISE",
-    "logisim_path": "util\\logisim-generic-2.7.1.jar",
-    "mars_path": "util\\mars.jar",
     "circ_dir": "circ",
-    "verilog_dir": "..\\..\\CPU\\P6",
-    "self_util": "util\\testcodeplus.exe",
+    "verilog_dir": "..\\..\\CPU\\P7",
+    "self_util": "util\\mips_tb_1.v",
     "self_dir": "self",
-    "random_set": {
-        "cal_r": ["add", "sub", "and", "or", "slt", "sltu"],
-        "cal_i": ["ori", "addi", "andi"],
-        "lui": ["lui"],
-        "store": ["sw", "sb", "sh"],
-        "load": ["lw", "lb", "lh"],
-        "branch": ["beq", "bne"],
-        "md": ["mult", "multu", "div", "divu"],
-        "mf": ["mfhi", "mflo"],
-        "mt": ["mthi", "mtlo"],
-        "j_l": ["jal"],
-        "j_r": ["jr"],
-        "nop": ["nop"]
-    },
-    "unit_set": {
-        "set_test": ["cal_i", "lui", "mt", "mf"],
-        "arth_test": ["cal_r", "md"],
-        "mem_test": ["store", "load"],
-        "branch_test": ["branch"],
-        "jump_test": ["j_l", "j_r"]
-    },
-    "tb": 2,
-    "test_times": 3
+    "mips_set": ["add", "sub", "and", "or", "slt", "sltu", "ori", "addi", "andi", "lui", "sw", "sb", "sh", "lw", "lb", "lh","beq",
+        "bne","mult", "multu", "div", "divu", "mfhi", "mflo", "mthi", "mtlo", "jal", "jr", "nop"]
 }

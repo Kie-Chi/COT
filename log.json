@@ -1,0 +1,132 @@
+{
+    "type": {
+        "norm": 4,
+        "lazy": 2,
+        "randomTest": 3,
+        "unitTest": 1,
+        "excTest": 0,
+        "intTest": 0,
+        "withMars": 2,
+        "withOthers": 4
+    },
+    "total": {
+        "use": 6,
+        "ak": 4,
+        "time": 721,
+        "times": 47,
+        "pass": 35
+    },
+    "points": {
+        "P3": 14,
+        "P4": 0,
+        "P5": 0,
+        "P6": 0,
+        "P7": 33,
+        "??": 0
+    },
+    "passes": {
+        "P3": 3,
+        "P4": 0,
+        "P5": 0,
+        "P6": 0,
+        "P7": 32,
+        "??": 0
+    },
+    "aks": {
+        "P3": 0,
+        "P4": 0,
+        "P5": 0,
+        "P6": 0,
+        "P7": 4,
+        "??": 0
+    },
+    "max": {
+        "max@once": {
+            "type": "P7",
+            "status": 0,
+            "stamp": "2024-12-01 23:48:56",
+            "times": 25,
+            "pass": 24,
+            "time": 392
+        },
+        "max@day": "2024-12-01",
+        "latest": {
+            "type": "P7",
+            "status": 0,
+            "stamp": "2024-12-01 23:48:56",
+            "times": 25,
+            "pass": 24,
+            "time": 392
+        },
+        "first": {
+            "type": "P7",
+            "status": 1,
+            "stamp": "2024-12-01 21:55:30",
+            "times": 1,
+            "pass": 1,
+            "time": 45
+        }
+    },
+    "log": [
+        {
+            "stamp": "2024-12-01",
+            "total": {
+                "use": 6,
+                "ak": 4,
+                "time": 721,
+                "times": 47,
+                "pass": 35
+            },
+            "log": [
+                {
+                    "type": "P7",
+                    "status": 1,
+                    "stamp": "2024-12-01 21:55:30",
+                    "times": 1,
+                    "pass": 1,
+                    "time": 45
+                },
+                {
+                    "type": "P7",
+                    "status": 1,
+                    "stamp": "2024-12-01 22:49:36",
+                    "times": 1,
+                    "pass": 1,
+                    "time": 46
+                },
+                {
+                    "type": "P3",
+                    "status": 0,
+                    "stamp": "2024-12-01 22:50:59",
+                    "times": 14,
+                    "pass": 3,
+                    "time": 80
+                },
+                {
+                    "type": "P7",
+                    "status": 1,
+                    "stamp": "2024-12-01 22:58:27",
+                    "times": 1,
+                    "pass": 1,
+                    "time": 47
+                },
+                {
+                    "type": "P7",
+                    "status": 1,
+                    "stamp": "2024-12-01 23:45:10",
+                    "times": 5,
+                    "pass": 5,
+                    "time": 111
+                },
+                {
+                    "type": "P7",
+                    "status": 0,
+                    "stamp": "2024-12-01 23:48:56",
+                    "times": 25,
+                    "pass": 24,
+                    "time": 392
+                }
+            ]
+        }
+    ]
+}
