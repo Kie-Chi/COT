@@ -500,6 +500,8 @@ class DataMaker:
 
         i = 0
         len0 = len(self.__mips)
+        num1 = 0
+        num2 = 0
         while (len(self.__mips) -len0) < times :
             is_br = np.random.randint(2)
             choice = np.random.choice([1, 2])
@@ -860,6 +862,8 @@ class DataMaker:
             end = np.random.choice(clock)
             to_set = "".join([*[f"{int(np.random.randint(0, 16)):x}" for _ in range(3)], end])
             to_set = int(to_set, 16)
+            if dest == 0x7f04 or dest == 0x7f14:
+                to_set = 0
             self.__set(rt, to_set)
             self.__set(rs, the_set)
             if md_choice == 0:
@@ -1038,11 +1042,12 @@ class DataMaker:
                 self.__set(rt, to_set)
                 self.__set(rs, dist)
                 self.__mips.append(self.sw(rs, rt, 0))                
-                self.__mips.append(self.nop())
                 for _ in range(md_choice):
                     self.__mips.append(self.nop())
                 if choice == 0:
-                    self.__mips.append(self.jal(f"label{now}"))                
+                    self.__mips.append(self.jal(f"label{now}"))   
+                else:
+                    self.__mips.append(self.nop())             
                 self.__mips.append(self.multu(rs, rs))
                 if choice == 0:
                     self.__mips.append(f"label{now}:\n")
@@ -1171,6 +1176,7 @@ class DataMaker:
             now = len(self.__mips)
             int_choice = np.random.randint(0, 3)
             choice = np.random.randint(0, 3)
+            stall_choice = np.random.randint(0, 3)
             rs = np.random.randint(2, 25)
             rt = np.random.randint(2, 25)
             imm = np.random.randint(0, 14000) >> 2
@@ -1196,21 +1202,33 @@ class DataMaker:
             else:
                 dist = 32512 if int_choice == 1 else 32528
                 clock = ["9", "8"]
+                clock = ["9"]
                 end = np.random.choice(clock)
                 to_set = "".join([*[f"{int(np.random.randint(0, 16)):x}" for _ in range(3)], end])
                 to_set = int(to_set, 16)
                 self.__set(rt, to_set)
                 self.__set(rs, dist)
-                self.__mips.append(self.sw(rs, rt, 0))                
-                self.__mips.append(self.lw(rs, rt ,0))
-                if choice >= 1:
+                if stall_choice != 0:
+                    self.__mips.append(self.div(rs, rs))
+                self.__mips.append(self.sw(rs, rt, 0))        
+                if stall_choice == 0:        
+                    self.__mips.append(self.lw(rs, rt ,0))
+                    if choice >= 1:
+                        self.__mips.append(self.nop())
+                    if choice >= 2:
+                        self.__mips.append(self.nop())
+                    self.__mips.append(self.beq(rs, rt, f"label{now}"))
                     self.__mips.append(self.nop())
-                if choice >= 2:
-                    self.__mips.append(self.nop())
-                self.__mips.append(self.beq(rs, rt, f"label{now}"))
-                self.__mips.append(self.nop())
-                self.__mips.append(f"label{now}:\n")
-                self.__mips.append(self.ori(0, rs, imm))
+                    self.__mips.append(f"label{now}:\n")
+                    self.__mips.append(self.ori(0, rs, imm))
+                else:
+                    self.__mips.append(self.jal(f"Jlabel{now}"))
+                    self.__mips.append(self.mfhi(rs))
+                    self.__mips.append(self.ori(0, 31, imm))
+                    self.__mips.append(f"Jlabel{now}:\n")
+                    self.__mips.append(self.mfhi(rs))
+                    self.__mips.append(self.ori(0, rs, imm))
+
 
 
     def int_test(self, times, noTimer=False, noInterrupt=False, _dir=".", tb_dir="."):

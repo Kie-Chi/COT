@@ -1,13 +1,14 @@
 {
-    "lazy-mode": true,
     "type": "verilog",
     "flow": true,
     "exc": true,
     "tb": 3,
-    "test_times": 50,
+    "test_times": 1,
     "xilinx_path": "D:\\Xilinx\\14.7\\ISE_DS\\ISE",
     "circ_dir": "circ",
-    "verilog_dir": "..\\..\\CPU\\P7",
+    "verilog_dir": "",
+    "self_util": "util\\mips_tb_1.v",
+    "self_dir": "self",
     "mips_set": ["add", "sub", "and", "or", "slt", "sltu", "ori", "addi", "andi", "lui", "sw", "sb", "sh", "lw", "lb", "lh","beq",
         "bne","mult", "multu", "div", "divu", "mfhi", "mflo", "mthi", "mtlo", "jal", "jr", "nop"]
 }

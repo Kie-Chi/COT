@@ -18,7 +18,7 @@ class Runner :
     def dump_hex(self, src, hex_dst) :
         os.makedirs(hex_dst, exist_ok=True)
         print_colored()
-        print_colored("Mars: ", 94, end="")
+        print_colored("Mars: ", 34, end="")
         print_colored("Start dumping datas...")
         for code in src :
             # flag, test = self.__find_endless(code)
@@ -26,15 +26,15 @@ class Runner :
             mips = [
                 "java",
                 "-jar",
-                self._mars,
+                os.path.join("..", self._mars),
                 "mc",
                 "LargeText",
                 "a",
                 "dump",
                 ".text",
                 "HexText",
-                hex_txt,
-                code,
+                hex_txt.replace(self._dir+os.sep, ""),
+                code.replace(self._dir+os.sep, ""),
                 # ">",
                 # os.path.join(self._dir ,"info.txt")
             ]
@@ -56,17 +56,16 @@ class Runner :
             mips = " ".join(mips)
 
             # print_colored()
-            print_colored(f"{os.path.basename(code)}: ", 95, end="")
+            print_colored(f"{os.path.basename(code)}: ", 35, end="")
             print_colored("Mars is dumping data...", 37)
             # os.system(mips)
-            safe_execute(mips, os.path.join(self._dir, "info.txt"))
+            safe_execute(mips, os.path.join(self._dir, "info.txt"), cwd=self._dir)
             contents = safe_read(os.path.join(self._dir, "info.txt"))
             contents = [content for content in contents if "Error" in content]
             if contents != []:
                 for content in contents:
                     print_colored(content)
-                exit()
-
+                raise Exception
             contents = safe_read(hex_txt)
             lens = len(contents)
             extra = ["00000000\n" for _ in range(4094 - lens)]
@@ -74,13 +73,13 @@ class Runner :
             extra.append("00000000\n")
             contents.extend(extra)
             safe_write(hex_txt, contents)
-        print_colored("Mars: ", 94, end="")
+        print_colored("Mars: ", 34, end="")
         print_colored("All dumped!!!")
 
     def _run_asm(self, src, out_log) :
         os.makedirs(out_log, exist_ok=True)
         print_colored()
-        print_colored("Mars: ", 94, end="")
+        print_colored("Mars: ", 34, end="")
         print_colored("Start executing asm...")
         for code in src :
             log_txt = os.path.join(out_log, f"{os.path.basename(code).replace('.asm', '.txt')}")
@@ -112,10 +111,10 @@ class Runner :
                 ext.insert(3, "db")
             if self._is_except :
                 ext.insert(3, "ex")
-            print_colored(f"{os.path.basename(code)}: ", 95, end="")
+            print_colored(f"{os.path.basename(code)}: ", 35, end="")
             print_colored("Mars executing asm...", 37)
             # os.system(ext)
-            safe_execute(ext, log_txt, setTime=False, timeout=2)
+            safe_execute(ext, log_txt)
             contents = ""
             with open(log_txt, "r", encoding="utf-8") as file :
                 contents = file.readlines()
@@ -135,7 +134,7 @@ class Runner :
                 safe_remove(log_txt.replace("stdout", "hex"))
             # print_colored(contents)
             # print_colored(f"{os.path.basename(code)} :Executed!")
-        print_colored("Mars: ", 94, end="")
+        print_colored("Mars: ", 34, end="")
         print_colored("All executed!!!")
 
 
@@ -277,15 +276,15 @@ class LogisimRunner(Runner) :
             # os.system(f"mkdir -p {out_log}")
             os.makedirs(out_log, exist_ok=True)
             print_colored()
-            print_colored(f"{os.path.basename(cpu)}: ", 94, end="")
+            print_colored(f"{os.path.basename(cpu)}: ", 34, end="")
             print_colored("Running logisim...")
             for cpu_file in cpu_files :
                 self.__add_main(cpu_file, content)    
-                print_colored(f"{os.path.basename(cpu_file).replace('.circ', '').split('-')[-1]}: ", 95, end="")
+                print_colored(f"{os.path.basename(cpu_file).replace('.circ', '').split('-')[-1]}: ", 35, end="")
                 print_colored(f"Executing {os.path.basename(cpu_file).replace('.circ', '').split('-')[0]}...", 37)
                 logs, log_txt = self.__get_raw_logs(cpu_file, out_log)
                 self.__trans_to_spj(logs, log_txt)
-            print_colored(f"{os.path.basename(cpu)}: ", 94, end="")
+            print_colored(f"{os.path.basename(cpu)}: ", 34, end="")
             print_colored("All Executed!!!")
 class XilinxRunner(Runner) :
     def __init__(self, path, mars, cpu_path, the_dir, isFlow, Except, tb, asm_dir) :
@@ -294,12 +293,12 @@ class XilinxRunner(Runner) :
         self.__cpu_path = cpu_path
         self.__cpu_in_dir = os.path.basename(cpu_path)
         self.__cpus = None
-        if os.name == str("nt"):
+        if os.path.exists(os.path.join(self._path, "bin", "nt64")):
             self.__funct_path = os.path.join(self._path, "bin", "nt64")
+            self.__fuse_path = os.path.join(self.__funct_path, "fuse.exe")
         else:
             self.__funct_path = os.path.join(self._path, "bin", "lin64")
-        
-        self.__fuse_path = os.path.join(self.__funct_path, "fuse.exe")
+            self.__fuse_path = os.path.join(self.__funct_path, "fuse")
         self._asm_dir = asm_dir
 
     def fuse(self):
@@ -308,11 +307,11 @@ class XilinxRunner(Runner) :
         cpus = [cpu for cpu in cpus if os.sep not in cpu.replace(self.__cpu_path + os.sep, "")]
 
         print_colored()
-        print_colored("ISE: ", 94, end="")
+        print_colored("ISE: ", 34, end="")
         print_colored("Start fusing...")
         self.__cpus = cpus
         for cpu in cpus:
-            print_colored(f"{cpu}: ", 95, end="")
+            print_colored(f"{cpu}: ", 35, end="")
             print_colored("Start creating .prj and .tcl...", 37)
             safe_makedirs(os.path.join(self._dir, self.__cpu_in_dir, cpu, "source"))
             ori_cpu_files, more = find_files(os.path.join(self.__cpu_path, cpu), ".v")
@@ -331,12 +330,12 @@ class XilinxRunner(Runner) :
 
             if not has_tb:
                 ori_cpu_files.append(os.path.join(self.__cpu_in_dir, "mips_tb.v"))
-            print_colored(f"{cpu}: ", 95, end="")
+            print_colored(f"{cpu}: ", 35, end="")
             print_colored("Start fusing...", 37)
             wrong = self.__fuse_ext(cpu, ori_cpu_files)
             if not wrong:
                 return False
-        print_colored("ISE: ", 94, end="")
+        print_colored("ISE: ", 34, end="")
         print_colored("All Executed!!!")
         return True
 
@@ -380,13 +379,13 @@ class XilinxRunner(Runner) :
         safe_execute(fuse, os.path.join(self._dir, self.__cpu_in_dir, cpu, "fuse_info.txt"), cwd=os.path.join(self._dir, self.__cpu_in_dir, cpu))
         path = os.path.join(self._dir, self.__cpu_in_dir, cpu, "mips.exe")
         if not os.path.exists(path):
-            print_colored("ERROR: There is something wrong when fusing", 91)
+            print_colored("ERROR: There is something wrong when fusing", 31)
             errors = []
             with open(os.path.join(self._dir, self.__cpu_in_dir, cpu, "fuse.log"), "r", encoding="utf-8") as fse:
                 errors = fse.readlines()
             errors = [error for error in errors if "ERROR" in error]
             for error in errors:
-                print_colored(error.strip(), 91)
+                print_colored(error.strip(), 31)
             return False
 
         safe_remove(os.path.join(self._dir, self.__cpu_in_dir, cpu, "fuse_info.txt"))
@@ -395,8 +394,12 @@ class XilinxRunner(Runner) :
         safe_remove(os.path.join(self._dir, self.__cpu_in_dir, cpu, "fuseRelaunch.cmd"))
 
     def __isim_ext(self, cpu):
+        if os.name != str("nt"):
+            test = os.path.join(".", "mips.exe")
+        else:
+            test = "mips.exe"
         ext = [
-            "mips.exe",
+            test,
             "-nolog",
             "-tclbatch",
             "mips.tcl",
@@ -404,7 +407,13 @@ class XilinxRunner(Runner) :
         ext = " ".join(ext)
         # print_colored(ext)
         # os.system(ext)
-        safe_execute(ext, os.path.join(self._dir, self.__cpu_in_dir, cpu, "output.txt"), cwd=os.path.join(self._dir, self.__cpu_in_dir, cpu), delay=0.5)
+        if os.name == str("nt"):
+            pass
+        else:
+            os.environ["LD_LIBRARY_PATH"] = os.path.join(self._path, "lib", "lin64")
+            os.environ["XILINX"] = self._path
+
+        safe_execute(ext, os.path.join(self._dir, self.__cpu_in_dir, cpu, "output.txt"), cwd=os.path.join(self._dir, self.__cpu_in_dir, cpu), retries=10, delay=0.1)
         # time.sleep(0.5)
         # xrunner.safe_rmtree(os.path.join(test_dir,"isim"))
         # safe_remove(os.path.join(self._dir, self.__cpu_path, cpu, "isim.wdb"))
@@ -419,13 +428,14 @@ class XilinxRunner(Runner) :
         all_test = os.path.join(self._dir, "hex")
         tests, names = find_files(all_test)
         print_colored()
-        print_colored("ISim: ", 94, end="")
+        print_colored("ISim: ", 34, end="")
         print_colored("Start stimulating...")
         for cpu in self.__cpus :
             safe_makedirs(os.path.join(self._dir, "log", cpu))
             tests.sort(key=self.__sort_no_tb)
+            ind = 0
             for test in tests :
-                print_colored(f"{cpu}: ", 95, end="")
+                print_colored(f"{cpu}: ", 35, end="")
                 print_colored(f"Executing {os.path.basename(test).replace('.txt', '')}...", 37)
                 name = os.path.basename(test).replace(".txt", "")
                 safe_copy(test, os.path.join(self._dir, self.__cpu_in_dir, cpu, "code.txt"))
@@ -436,6 +446,9 @@ class XilinxRunner(Runner) :
                 contents = []
                 with open(os.path.join(self._dir, self.__cpu_in_dir, cpu, "output.txt"), "r", encoding="utf-8") as file :
                     contents = file.readlines()
+                if contents == []:
+                    ind += 1
+                    print_colored("WARNING: No output got", 33)
                 contents = [content for content in contents if "@" in content and "$ 0" not in content]
                 if self._is_flow == True :
                     contents = [(int(content.split("@")[0].strip()), 1 if "*" in content.split("@")[1] else 0, "@" + content.split("@")[1]) for content in contents]
@@ -454,10 +467,13 @@ class XilinxRunner(Runner) :
                     file.writelines(filted)
                 safe_copy(os.path.join(self._dir, self.__cpu_in_dir, cpu, "output.txt"), os.path.join(self._dir, "log", cpu, f"{name}-{cpu}-out.txt"))
                 # print_colored(f"{cpu}: {os.path.basename(test)} is executed!!!")
-            safe_rmtree(os.path.join(self._dir, self.__cpu_in_dir, cpu))
-        print_colored("ISim: ", 94, end="")
+            if ind == len(test):
+                print_colored("ERROR: Something wrong with ISim, Please restart the machine or your PC")
+                raise Exception
+            safe_rmtree(os.path.join(self._dir, self.__cpu_in_dir, cpu), 20, 0.)
+        print_colored("ISim: ", 34, end="")
         print_colored("All executed!!!")
-        safe_rmtree(os.path.join(self._dir, self.__cpu_in_dir))
+        safe_rmtree(os.path.join(self._dir, self.__cpu_in_dir), 20, 0.3)
         
 def find_files(path, key="") :
     """
@@ -489,30 +505,22 @@ def find_dirs(path, key="") :
                 names.append(_dir)
     return results, names
 
-def safe_execute(cmd, file, cwd=".", retries=5, delay=0.1, setTime=False, timeout=0) :
+def safe_execute(cmd, file, cwd=".", retries=5, delay=0.1) :
     for _ in range(retries) :
         try :
-            if setTime:
-                with open(file, "w", encoding="utf-8") as stdout :
-                    subprocess.run(cmd, stdout=stdout, stderr=subprocess.STDOUT, cwd=cwd, timeout=timeout)
-                return 
-            else:
-                with open(file, "w", encoding="utf-8") as stdout :
-                    subprocess.run(cmd, stdout=stdout, stderr=subprocess.STDOUT, cwd=cwd)
-                return
+            with open(file, "w", encoding="utf-8") as stdout :
+                subprocess.run(cmd, stdout=stdout, stderr=subprocess.STDOUT, cwd=cwd)
+            return
         except (FileNotFoundError, PermissionError) :
             time.sleep(delay)
-        except subprocess.TimeoutExpired :
-            print_colored(f"WARNING: The process has run {timeout}s!!!", 93)
-            return
     try:
-        # print_colored(f"cd {cwd} && " + cmd)
-        cmd += f" > {os.path.basename(file)}"
-        os.system(f"cd {cwd} && " + cmd)
+        cmd = f"{cmd} > {os.path.basename(file)}"
+        # print(f"cd {cwd} && {cmd}")
+        os.system(f"cd {cwd} && {cmd}")
     except :
-        print_colored("ERROR: can't execute the code correctly!!!", 91)
-        exit()
-
+        print_colored("ERROR: can't execute the code correctly!!!", 31)
+        raise Exception
+    
 def safe_rmtree(path, retries=5, delay=0.1):
     if os.path.exists(path):
         for _ in range(retries):
@@ -521,7 +529,7 @@ def safe_rmtree(path, retries=5, delay=0.1):
                 return  # 成功删除后返回
             except (FileNotFoundError, PermissionError):
                 time.sleep(delay)  # 等待一段时间后重试
-        print_colored(f"Failed to delete {path} after {retries} attempts.", 93)
+        print_colored(f"Failed to delete {path} after {retries} attempts.", 33)
 
 def safe_remove(path, retries=5, delay=0.1):
     if os.path.exists(path):
@@ -531,7 +539,7 @@ def safe_remove(path, retries=5, delay=0.1):
                 return  # 成功删除后返回
             except (FileNotFoundError, PermissionError):
                 time.sleep(delay)  # 等待一段时间后重试
-        print_colored(f"Failed to delete {path} after {retries} attempts.", 93)
+        print_colored(f"Failed to delete {path} after {retries} attempts.", 33)
 
 def safe_copy(src, dst, retries=5, delay=0.1) :
     for _ in range(retries) :
@@ -540,7 +548,7 @@ def safe_copy(src, dst, retries=5, delay=0.1) :
             return
         except (FileNotFoundError, PermissionError):
             time.sleep(delay)
-    print_colored(f"Failed to copy {src} to {dst} after {retries} attempts.", 93)
+    print_colored(f"Failed to copy {src} to {dst} after {retries} attempts.", 33)
     
 def safe_read(src, retries=5, delay=0.1) :
     contents = []
@@ -567,7 +575,7 @@ def safe_makedirs(path, exist_ok=True, retries=5, delay=0.1) :
             return
         except (PermissionError, OSError) :
             time.sleep(delay)
-    print_colored(f"Failed to makedirs {path} after {retries} attempts.", 93)
+    print_colored(f"Failed to makedirs {path} after {retries} attempts.", 33)
 
 def print_colored(text="", fg_color=97, bg_color=None, style=None, end="\n", flush=False):
     # 格式化颜色和样式
@@ -579,35 +587,14 @@ def print_colored(text="", fg_color=97, bg_color=None, style=None, end="\n", flu
     # 打印带颜色的文本
     print(f"\033[{color_code}m{text}\033[0m", end=end, flush=flush)
 
-def exit():
-    print_colored("Press Enter to exit...", 93, end="")
-    input()
-    sys.exit()
-class TimeoutException(Exception):
-    pass
-
-def timeout(seconds):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            result = [TimeoutException(f"Function {func.__name__} timed out after {seconds} seconds")]
-            
-            def target():
-                try:
-                    result[0] = func(*args, **kwargs)
-                except Exception as e:
-                    result[0] = e
-            
-            thread = threading.Thread(target=target)
-            thread.start()
-            thread.join(seconds)
-
-            if thread.is_alive():
-                return result[0]  # 返回超时异常或超时信息
-            else:
-                return result[0]
-        return wrapper
-    return decorator
+def color_str(text="", fg_color=97, bg_color=None, style=None):
+    color_code = str(fg_color)
+    if bg_color:
+        color_code += f";{bg_color}"
+    if style:
+        color_code += f";{style}"
+    # 打印带颜色的文本
+    return f"\033[0m\033[{color_code}m{text}\033[0m\033[97m"
 
 if __name__ == "__main__" :
     # runner = Runner("abc", "test_dr")

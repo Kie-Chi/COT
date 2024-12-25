@@ -188,7 +188,11 @@ class Test:
             end = datetime.now()
             self.running_time = round((end - start).total_seconds())
             self.__get_log()
-            hidden_folder = os.path.join(os.environ['LOCALAPPDATA'], ".COT")
+            hidden_folder = ""
+            if os.name == str("nt"):
+                hidden_folder = os.path.join(os.environ['LOCALAPPDATA'], ".COT")
+            else:
+                hidden_folder = os.path.join(os.environ['HOME'], ".COT")
             if not os.path.exists(hidden_folder):
                 Runner.safe_makedirs(hidden_folder)
             if os.path.exists(os.path.join(hidden_folder, "log.json")):
@@ -198,13 +202,13 @@ class Test:
             self.__update()
             json.dump(self.log, open(os.path.join(hidden_folder, "log.json"), "w", encoding="utf-8"))
         except Exception as e:
-            Runner.print_colored(f"Error: {type(e).__name__}\"{e}\"", 91)
-            Runner.print_colored(f"Detailed Stacktree:", 91)
-            Runner.print_colored(traceback.format_exc(), 91)
+            Runner.print_colored(f"Error: {type(e).__name__}\"{e}\"", 31)
+            Runner.print_colored(f"Detailed Stacktree:", 31)
+            Runner.print_colored(traceback.format_exc(), 31)
             test_dir = getattr(self.machine, "_Machine__test_dir", None)
             if os.path.exists(test_dir):
                 Runner.safe_rmtree(test_dir, retries=10, delay=0.3)
-        Runner.print_colored("Press Enter to exit...", 93, end="")
+        Runner.print_colored("Press Enter to exit...", 33, end="")
         input()
         sys.exit()
         

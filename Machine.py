@@ -250,21 +250,21 @@ class Machine :
     def __delete(self, flag, wrong, circ_files, wrong_files) :
         if flag :
             # os.system(f"rm -rf {test_dir}")
-            Runner.safe_rmtree(self.__test_dir)
+            Runner.safe_rmtree(self.__test_dir, 10, 0.2)
             Runner.print_colored()
-            Runner.print_colored("-------------------------", 92)
-            Runner.print_colored("|                       |", 92)
-            Runner.print_colored("|       ACCEPTED        |", 92)               
-            Runner.print_colored("|                       |", 92)
-            Runner.print_colored("-------------------------", 92)
+            Runner.print_colored("-------------------------", 32)
+            Runner.print_colored("|                       |", 32)
+            Runner.print_colored("|       ACCEPTED        |", 32)               
+            Runner.print_colored("|                       |", 32)
+            Runner.print_colored("-------------------------", 32)
             Runner.print_colored()
         else :
             Runner.print_colored()
-            Runner.print_colored("--------------------------", 91)
-            Runner.print_colored("|                        |", 91)
-            Runner.print_colored("|      WRONG ANSWER      |", 91)
-            Runner.print_colored("|                        |", 91)
-            Runner.print_colored("--------------------------", 91)
+            Runner.print_colored("--------------------------", 31)
+            Runner.print_colored("|                        |", 31)
+            Runner.print_colored("|      WRONG ANSWER      |", 31)
+            Runner.print_colored("|                        |", 31)
+            Runner.print_colored("--------------------------", 31)
             Runner.print_colored("Testcode: ", end="")
             ind = 0
             for i in sorted([wr.replace(".txt", "") for wr in wrong_files]):
@@ -297,6 +297,14 @@ class Machine :
             # Runner.safe_rmtree(os.path.join(self.__test_dir, self.__cpu_dir))
 
     def __compare_mars(self, file, stdouts) :
+        def get_index(table, index) -> int:
+            ind = 0
+            for k in range(len(table)):
+                if table[k] == 1:
+                    ind += 1
+                    if ind == index:
+                        return k
+            return -1
         flag = True
         name = file.split('-')[1]
         mips_test = file.split('-')[0]
@@ -321,6 +329,7 @@ class Machine :
         asm_source = [asm for asm in ori_source if asm.strip() != ""]
         asm_source = [src for src in asm_source if src.strip()[-1] != ":"]
         asm_source = [asm for asm in asm_source if asm.strip()[0] != "#"]
+        table = [1 if asm.strip()!="" and asm.strip()[-1]!=":" and asm.strip()[0]!="#" else 0 for asm in ori_source]
 
         with open(os.path.join(self.__test_dir, "hex", f"{mips_test}.txt"), "r", encoding="utf-8") as _hex:
             hex_source = _hex.readlines()
@@ -334,7 +343,8 @@ class Machine :
                 with open(os.path.join(self.__test_dir, "dif", name, f"{mips_test}-std-dif.log"), "w", encoding="utf-8") as dif :
                     dif.write(f"First error in line {i + 1}\n")
                     dif.write(f"------the first different Mips code \"{hex_source[dist].strip()}\"-----\n")
-                    dif.write(f"Mips Code: \"{asm_source[dist].strip()}\" in line {ori_source.index(asm_source[dist]) + 1}\n")
+                    ind = get_index(table, dist+1)
+                    dif.write(f"Mips Code: \"{asm_source[dist].strip()}\" in line {ind+1}\n")
                     dif.write(f"Mars: \"{stdouts[i].strip()}\"\n")
                     dif.write(f"{name}: \"{outputs[i].strip()}\"\n")
                     dif.write(f"---------------------------------------\n")
@@ -342,7 +352,8 @@ class Machine :
                         pc = stdouts[i-1].split(" ")[0].strip("@:")
                         pc = int(pc, 16) - int("3000", 16)
                         dist = pc >> 2
-                        dif.write(f"the most recent same Mips code is: \"{asm_source[dist].strip()}\" in line {ori_source.index(asm_source[dist]) + 1}\n")
+                        ind = get_index(table, dist+1)
+                        dif.write(f"the most recent same Mips code is: \"{asm_source[dist].strip()}\" in line {ind+1}\n")
                         dif.write(f"the most recent same Mips code output is: \"{outputs[i - 1].strip()}\"\n\n")
                 break
         if len1 != len2 :
@@ -353,6 +364,14 @@ class Machine :
         return flag, name
 
     def __compare_others(self, outputs, files) :
+        def get_index(table, index) -> int:
+            ind = 0
+            for k in range(len(table)):
+                if table[k] == 1:
+                    ind += 1
+                    if ind == index:
+                        return k
+            return -1
         flag = True
         wrong = []
         more, circ_files = Runner.find_dirs(os.path.join(self.__test_dir, "log"))
@@ -380,10 +399,10 @@ class Machine :
                         with open(os.path.join(self.__test_dir, self.__asm_dir, f"{files[t]}.asm"), "r", encoding="GB2312") as _asm:
                             ori_source = _asm.readlines()
                     
-
                     asm_source = [asm for asm in ori_source if asm.strip() != ""]
                     asm_source = [src for src in asm_source if src.strip()[-1] != ":"]
                     asm_source = [asm for asm in asm_source if asm.strip()[0] != "#"]
+                    table = [1 if asm.strip()!="" and asm.strip()[-1]!=":" and asm.strip()[0]!="#" else 0 for asm in ori_source]
 
                     with open(os.path.join(self.__test_dir, "hex", f"{files[t]}.txt"), "r", encoding="utf-8") as _hex:
                         hex_source = _hex.readlines()
@@ -400,16 +419,19 @@ class Machine :
                             with open(os.path.join(self.__test_dir, "dif", files[t], f"{circ_files[x]}-{circ_files[j]}-dif.log"), "w", encoding="utf-8") as dif :
                                 dif.write(f"First dif in line {i + 1}\n")
                                 dif.write(f"------the first different Mips code-----\n")
-                                dif.write(f"{circ_files[x]} execute: \"{asm_source[x_dist].strip()}\" in line {ori_source.index(asm_source[x_dist]) + 1}\n")
+                                ind = get_index(table, x_dist+1)
+                                dif.write(f"{circ_files[x]} execute: \"{asm_source[x_dist].strip()}\" in line {ind+1}\n")
                                 dif.write(f"{circ_files[x]}: \"{outputs[x][t][i].strip()}\"\n")
-                                dif.write(f"{circ_files[j]} execute: \"{asm_source[j_dist].strip()}\" in line {ori_source.index(asm_source[j_dist]) + 1}\n")
+                                ind = get_index(table, j_dist+1)
+                                dif.write(f"{circ_files[j]} execute: \"{asm_source[j_dist].strip()}\" in line {ind+1}\n")
                                 dif.write(f"{circ_files[j]}: \"{outputs[j][t][i].strip()}\"\n")
                                 dif.write(f"---------------------------------------\n")
                                 if i >= 1 :
                                     pc = outputs[x][t][i-1].split(" ")[0].strip("@:")
                                     pc = int(pc, 16) - int("3000", 16)
                                     dist = pc >> 2
-                                    dif.write(f"the most recent same Mipc code is: \"{asm_source[dist].strip()}\" in line {ori_source.index(asm_source[dist]) + 1}\n")
+                                    ind = get_index(table, dist+1)
+                                    dif.write(f"the most recent same Mipc code is: \"{asm_source[dist].strip()}\" in line {ind+1}\n")
                                     dif.write(f"the most recent same Mips code output is: \"{outputs[x][t][i - 1].strip()}\"\n\n")
 
                             if files[t] not in wrong :

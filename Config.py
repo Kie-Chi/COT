@@ -175,127 +175,161 @@ class Config :
         self.__init()
 
     def find_ise(self) :
+        result = []
         if os.name == "nt" :
             drives = []
             for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
                 if os.path.exists(f"{letter}:\\"):
                     drives.append(f"{letter}:\\")
-            result = []
             for drive in drives:
                 result.extend(find_directory_with_depth(drive, "Xilinx"))
-
-            path = ""
-            result = [os.path.join(res, "14.7", "ISE_DS", "ISE") for res in result]
-            slt = {str(i+1):result[i] for i in range(len(result))}
-            if len(result) > 1 :
-                while True:
-                    Runner.print_colored()
-                    Runner.print_colored("-------------------------", 37)
-                    for key in slt.keys():
-                        Runner.print_colored(f"[{key}]> ", 94, end="")
-                        Runner.print_colored(f"{slt[key]}")
-                    Runner.print_colored("-------------------------", 37)
-                    Runner.print_colored("choose one you want: ", 92, end="")
-                    the_slt = input()
-                    if the_slt in slt.keys():
-                        path = slt[the_slt]
-                        break
-                    else:
-                        Runner.print_colored("ERROR: Invalid slt", 91)
-                return path
-                return path
-            elif len(result) == 1 :
-                path = result[0]
-                return path
-            else :
-                Runner.print_colored("ERROR: Machine can't find valid ISE_path", 91)
-                return path
+        else :
+            result.extend(find_directory_with_depth("/", "Xilinx"))
+        path = ""
+        result = [os.path.join(res, "14.7", "ISE_DS", "ISE") for res in result]
+        slt = {str(i+1):result[i] for i in range(len(result))}
+        if len(result) > 1 :
+            while True:
+                Runner.print_colored()
+                Runner.print_colored("-------------------------", 37)
+                for key in slt.keys():
+                    Runner.print_colored(f"[{key}]> ", 34, end="")
+                    Runner.print_colored(f"{slt[key]}")
+                Runner.print_colored("-------------------------", 37)
+                Runner.print_colored("choose one you want: ", 32, end="")
+                the_slt = input()
+                if the_slt in slt.keys():
+                    path = slt[the_slt]
+                    break
+                else:
+                    Runner.print_colored("ERROR: Invalid slt", 31)
+            return path
+            return path
+        elif len(result) == 1 :
+            path = result[0]
+            return path
+        else :
+            Runner.print_colored("ERROR: Machine can't find valid ISE_path", 31)
+            while True:
+                Runner.print_colored("You want set xilinx_path as(q for exit): ", 32, end="")
+                path = input()
+                if path == "q":
+                    self.__exit()
+                elif not os.path.exists(path):
+                    Runner.print_colored("ERROR: Invalid path, Please try again or exit")
+                else:
+                    break
+            return path
 
     def find_circ(self) :
+        result = []
         if os.name == "nt" :
             drives = []
             for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
                 if os.path.exists(f"{letter}:\\"):
                     drives.append(f"{letter}:\\")
-            result = []
             for drive in drives:
                 possible_circ = find_option_with_depth(drive, ".circ", max_depth=4)
                 result.extend(possible_circ)
+        else:
+            result.extend(find_option_with_depth("/", ".circ", max_depth=4))
+        
+        circ_path = []
+        for possible in result :
+            if os.path.dirname(possible) not in circ_path :
+                circ_path.append(os.path.dirname(possible))
 
-            circ_path = []
-            for possible in result :
-                if possible.replace(os.sep + os.path.basename(possible), "") not in circ_path :
-                    circ_path.append(possible.replace(os.sep + os.path.basename(possible), ""))
-
-            slt = {str(i+1):circ_path[i] for i in range(len(circ_path))}
-            path = ""
-            if len(circ_path) > 1:
-                while True:
-                    Runner.print_colored()
-                    Runner.print_colored("-------------------------", 37)
-                    for key in slt.keys():
-                        Runner.print_colored(f"[{key}]> ", 94, end="")
-                        Runner.print_colored(f"{slt[key]}")
-                    Runner.print_colored("-------------------------", 37)
-                    Runner.print_colored("choose one you want: ", 92, end="")
-                    the_slt = input()
-                    if the_slt in slt.keys():
-                        path = slt[the_slt]
-                        break
-                    else:
-                        Runner.print_colored("ERROR: Invalid slt", 91)
-                return path
-            elif len(circ_path) == 1:
-                path = circ_path[0]
-                return path
-            else:
-                Runner.print_colored("ERROR: Machine find no valid .circ can be used", 91)
-                return path
+        slt = {str(i+1):circ_path[i] for i in range(len(circ_path))}
+        path = ""
+        if len(circ_path) > 1:
+            while True:
+                Runner.print_colored()
+                Runner.print_colored("-------------------------", 37)
+                for key in slt.keys():
+                    Runner.print_colored(f"[{key}]> ", 34, end="")
+                    Runner.print_colored(f"{slt[key]}")
+                Runner.print_colored("-------------------------", 37)
+                Runner.print_colored("choose one you want: ", 32, end="")
+                the_slt = input()
+                if the_slt in slt.keys():
+                    path = slt[the_slt]
+                    break
+                else:
+                    Runner.print_colored("ERROR: Invalid slt", 31)
+            return path
+        elif len(circ_path) == 1:
+            path = circ_path[0]
+            return path
+        else:
+            Runner.print_colored("ERROR: Machine find no valid .circ can be used", 31)
+            while True:
+                Runner.print_colored("You want set circ_path as(q for exit): ", 32, end="")
+                path = input()
+                if path == "q":
+                    self.__exit()
+                elif not os.path.exists(path):
+                    Runner.print_colored("ERROR: Invalid path, Please try again or exit")
+                else:
+                    break
+            return path
     def find_verilog(self) :
+        result = []
         if os.name == "nt" :
             drives = []
             for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
                 if os.path.exists(f"{letter}:\\"):
                     drives.append(f"{letter}:\\")
-            result = []
             for drive in drives:
                 possible_verilog = find_file_with_depth(drive, "mips.v", max_depth=4)
                 result.extend(possible_verilog)
+        else:
+            result.extend(find_file_with_depth("/", "mips.v", max_depth=4))
+            result.extend(find_file_with_depth(os.path.expanduser("~"), "mips.v", max_depth=4))
+        verilog_path = []
+        for possible in result :
+            if os.path.dirname(possible) not in verilog_path :
+                verilog_path.append(os.path.dirname(possible))
 
-            verilog_path = []
-            for possible in result :
-                if possible.replace(os.sep + os.path.basename(possible), "") not in verilog_path :
-                    verilog_path.append(possible.replace(os.sep + os.path.basename(possible), ""))
+        cpu_path = []
+        # print(result)
+        # print(verilog_path)
+        for verilog in verilog_path :
+            if os.path.dirname(verilog) not in cpu_path :
+                cpu_path.append(os.path.dirname(verilog))
 
-            cpu_path = []
-            for verilog in verilog_path :
-                if verilog.replace(os.sep + os.path.basename(verilog), "") not in cpu_path :
-                    cpu_path.append(verilog.replace(os.sep + os.path.basename(verilog), ""))
-
-            slt = {str(i+1):cpu_path[i] for i in range(len(cpu_path))}
-            path = ""
-            if len(cpu_path) > 1:
-                while True:
-                    Runner.print_colored()
-                    Runner.print_colored("-------------------------", 37)
-                    for key in slt.keys():
-                        Runner.print_colored(f"[{key}]> ", 94, end="")
-                        Runner.print_colored(f"{slt[key]}")
-                    Runner.print_colored("-------------------------", 37)
-                    Runner.print_colored("choose one you want: ", 92, end="")
-                    the_slt = input()
-                    if the_slt in slt.keys():
-                        path = slt[the_slt]
-                        break
-                    else:
-                        Runner.print_colored("ERROR: Invalid slt", 91)
-                return path
-            elif len(cpu_path) == 1:
-                path = cpu_path[0]
-                return path
-            else:
-                Runner.print_colored("ERROR: Machine find no valid .v can be used", 91)
-                return path
+        slt = {str(i+1):cpu_path[i] for i in range(len(cpu_path))}
+        path = ""
+        if len(cpu_path) > 1:
+            while True:
+                Runner.print_colored()
+                Runner.print_colored("-------------------------", 37)
+                for key in slt.keys():
+                    Runner.print_colored(f"[{key}]> ", 34, end="")
+                    Runner.print_colored(f"{slt[key]}")
+                Runner.print_colored("-------------------------", 37)
+                Runner.print_colored("choose one you want: ", 32, end="")
+                the_slt = input()
+                if the_slt in slt.keys():
+                    path = slt[the_slt]
+                    break
+                else:
+                    Runner.print_colored("ERROR: Invalid slt", 31)
+            return path
+        elif len(cpu_path) == 1:
+            path = cpu_path[0]
+            return path
+        else:
+            Runner.print_colored("ERROR: Machine find no valid .v can be used", 31)
+            while True:
+                Runner.print_colored("You want set verilog_path as(q for exit): ", 32, end="")
+                path = input()
+                if path == "q":
+                    self.__exit()
+                elif not os.path.exists(path):
+                    Runner.print_colored("ERROR: Invalid path, Please try again or exit")
+                else:
+                    break
+            return path
 
             # Runner.print_colored(verilog_path)    
             # Runner.print_colored(cpu_path)
@@ -323,12 +357,12 @@ class Config :
             Runner.print_colored("Options~")
             Runner.print_colored("-------------------------", 37)
             for i in range(1, 6):
-                Runner.print_colored(f"[{i}]> ", 94, end="")
+                Runner.print_colored(f"[{i}]> ", 34, end="")
                 Runner.print_colored(f"P{i+2}")
-            Runner.print_colored("[q]> ", 91, end="")
+            Runner.print_colored("[q]> ", 31, end="")
             Runner.print_colored("exit")
             Runner.print_colored("-------------------------", 37)
-            Runner.print_colored("You want: ", 92, end="")
+            Runner.print_colored("You want: ", 32, end="")
             proj = input()
 
             if proj in slts:
@@ -341,7 +375,7 @@ class Config :
                 break
                     
             else:
-                Runner.print_colored("ERROR: Invalid slt", 91)
+                Runner.print_colored("ERROR: Invalid slt", 31)
         config = getattr(self, "_Config" + f"__default_p{slt}", None)
         if os.path.exists(os.path.join("configs", f"__default_p{slt}.json")):
             default_config = json.load(open(os.path.join("configs", f"__default_p{slt}.json"), "r", encoding="utf-8"))
@@ -374,7 +408,7 @@ class Config :
             if "lazy-mode" in file_config.keys():
                     self.__lazy = file_config["lazy-mode"]
             if not isinstance(self.__lazy, bool):
-                Runner.print_colored("ERROR: Please check attribute \"lazy-mode\" in config", 91)
+                Runner.print_colored("ERROR: Please check attribute \"lazy-mode\" in config", 31)
                 self.__exit()
             
             if self.__lazy :
@@ -383,61 +417,61 @@ class Config :
         if "type" in file_config.keys():
             self.type = file_config["type"]
         if self.type != "logisim" and self.type != "verilog":
-            Runner.print_colored("ERROR: Please check atttribute \"type\" in config", 91)
+            Runner.print_colored("ERROR: Please check atttribute \"type\" in config", 31)
             self.__exit()
         
         if "flow" in file_config.keys():
             self.flow = file_config["flow"]
         if not isinstance(self.flow, bool):
-            Runner.print_colored("ERROR: Please check attribute \"flow\" in config", 91)
+            Runner.print_colored("ERROR: Please check attribute \"flow\" in config", 31)
             self.__exit()
 
         if "exc" in file_config.keys():
             self.exc = file_config["exc"]
         if not isinstance(self.exc, bool):
-            Runner.print_colored("ERROR: Please check attribute \"exc\" in config", 91)
+            Runner.print_colored("ERROR: Please check attribute \"exc\" in config", 31)
             self.__exit()
 
         if "tb" in file_config.keys():
             self.tb = file_config["tb"]
         if not (int(self.tb) >= 0 and int(self.tb) <= 3) and self.type == "verilog":
-            Runner.print_colored("ERROR: Please check attribute \"tb\" in config", 91)
+            Runner.print_colored("ERROR: Please check attribute \"tb\" in config", 31)
             self.__exit()
 
         if "xilinx_path" in file_config.keys():
             self.xilinx_path = file_config["xilinx_path"]
         if not os.path.exists(self.xilinx_path) and self.type == "verilog":
-            Runner.print_colored("ERROR: Please check attribute \"xilinx_path\" in config", 91)
+            Runner.print_colored("ERROR: Please check attribute \"xilinx_path\" in config", 31)
             self.__exit()
         
         if "circ_dir" in file_config.keys():
             self.cir_dir = file_config["circ_dir"]
         if not os.path.exists(self.cir_dir) and self.type == "logisim":
-            Runner.print_colored("ERROR: Please check attribute \"circ_dir\" in config", 91)
+            Runner.print_colored("ERROR: Please check attribute \"circ_dir\" in config", 31)
             self.__exit()
 
         if "verilog_dir" in file_config.keys():
             self.verilog_dir = file_config["verilog_dir"]
         if not os.path.exists(self.verilog_dir) and self.type == "verilog":
-            Runner.print_colored("ERROR: Please check attribute \"verilog_dir\" in config", 91)
+            Runner.print_colored("ERROR: Please check attribute \"verilog_dir\" in config", 31)
             self.__exit()
 
         if "test_times" in file_config.keys():
             self.test_times = file_config["test_times"]
         if not str(self.test_times).isalnum():
-            Runner.print_colored("ERROR: Please check attribute \"test_times\" in config", 91)
+            Runner.print_colored("ERROR: Please check attribute \"test_times\" in config", 31)
             self.__exit()
 
         if "self_util" in file_config.keys():
             self.self_util = file_config["self_util"]
         if not os.path.exists(self.self_util) and self.self_util != "":
-            Runner.print_colored("ERROR: Please check attribute \"self_util\" in config", 91)
+            Runner.print_colored("ERROR: Please check attribute \"self_util\" in config", 31)
             self.__exit()
 
         if "self_dir" in file_config.keys():
             self.self_dir = file_config["self_dir"]
         if not os.path.exists(self.self_dir) and self.self_dir != "":
-            Runner.print_colored("ERROR: Please check attribute \"self_dir\" in config", 91)
+            Runner.print_colored("ERROR: Please check attribute \"self_dir\" in config", 31)
             self.__exit()
 
         if "random_set" in file_config.keys():
@@ -447,11 +481,11 @@ class Config :
             self.unit_set = file_config["unit_set"]
 
         if not os.path.exists(self.logisim_path) and self.type == "logisim" :
-            Runner.print_colored(f"ERROR: Can't find Logisim({self.logisim_path})", 91)
+            Runner.print_colored(f"ERROR: Can't find Logisim({self.logisim_path})", 31)
             self.__exit()
         
         if not os.path.exists(self.mars_path) :
-            Runner.print_colored(f"ERROR: Can't find Mars({self.mars_path})", 91)
+            Runner.print_colored(f"ERROR: Can't find Mars({self.mars_path})", 31)
             self.__exit()
 
     def __read_config(self) :
@@ -476,13 +510,13 @@ class Config :
                 try:
                     file_config:dict = json.load(file)
                 except Exception as e:
-                    Runner.print_colored("ERROR: Invalid config")
-                    Runner.print_colored(e)
+                    Runner.print_colored("ERROR: Invalid config", 31)
+                    Runner.print_colored(e, 31)
                     self.__exit()
             file_config = self.__format_set(file_config)
             self.__set_attr(file_config)
         else :
-            Runner.print_colored("ERROR: No file can be used in .\\configs", 91)
+            Runner.print_colored("ERROR: No file can be used in .\\configs", 31)
             self.__exit()
     
     def __format_set(self, file_config:dict):
@@ -516,7 +550,7 @@ class Config :
             mips_set = file_config["mips_set"]
             del file_config["mips_set"]
         else:
-            Runner.print_colored("ERROR: Please check attribute \"mips_set\" in config", 91)
+            Runner.print_colored("ERROR: Please check attribute \"mips_set\" in config", 31)
         
         for mips in mips_set:
             for key in trans_set.keys():
@@ -580,13 +614,13 @@ class Config :
             self.session = "P3"
             if self.flow == True:
                 self.session = "??"
-                Runner.print_colored("WARNING: You want to test a flow-based cpu built with Logisim", 93)
+                Runner.print_colored("WARNING: You want to test a flow-based cpu built with Logisim", 33)
             if  self.exc == True:
                 self.session = "??"
-                Runner.print_colored("WARNING: You want to test a exception-handling cpu built with Logisim", 93)
+                Runner.print_colored("WARNING: You want to test a exception-handling cpu built with Logisim", 33)
             cpus, useless = Runner.find_files(self.cir_dir, ".circ")
             if cpus == []:
-                Runner.print_colored("ERROR: You have no valid cpu for test", 91)
+                Runner.print_colored("ERROR: You have no valid cpu for test", 31)
                 self.__view_config()
                 self.__exit()
         elif self.type == "verilog":
@@ -612,7 +646,7 @@ class Config :
                         has_tb = False 
                 if not has_tb:
                     self.session = "XX"
-                    Runner.print_colored("ERROR: You don't have testbench, and you won't accept a testbench added by Machine", 91)
+                    Runner.print_colored("ERROR: You don't have testbench, and you won't accept a testbench added by Machine", 31)
                     self.__view_config()
                     self.__exit()
             if self.flow == True:
@@ -621,7 +655,7 @@ class Config :
                         self.session = "P5"
                     else:
                         self.session = "XX"
-                        Runner.print_colored("ERROR: Seems your cpu can't handle exception but you set \"is_exc\" True", 91)
+                        Runner.print_colored("ERROR: Seems your cpu can't handle exception but you set \"is_exc\" True", 31)
                         self.__view_config()
                         self.__exit()
                 elif self.tb == 2:
@@ -629,7 +663,7 @@ class Config :
                         self.session = "P6"
                     else:
                         self.session = "XX"
-                        Runner.print_colored("ERROR: Seems your cpu can't handle exception but you set \"is_exc\" True", 91)
+                        Runner.print_colored("ERROR: Seems your cpu can't handle exception but you set \"is_exc\" True", 31)
                         self.__view_config()
                         self.__exit()
                 elif self.tb >= 3:
@@ -637,35 +671,35 @@ class Config :
                         self.session = "P7"
                     else:
                         self.session = "XX"
-                        Runner.print_colored("ERROR: Seems you want to test a exception-handling cpu but you set \"is_exc\" False", 91)
+                        Runner.print_colored("ERROR: Seems you want to test a exception-handling cpu but you set \"is_exc\" False", 31)
                         self.__view_config()
                         self.__exit()
             else:
                 if self.tb == 1:
                     if self.exc == True:
                         self.session = "??"
-                        Runner.print_colored("WARNING: You want to test a exception-handling cpu but not a flow-based one", 93)
+                        Runner.print_colored("WARNING: You want to test a exception-handling cpu but not a flow-based one", 33)
                     else:
                         self.session = "P4"
                 else:
                     self.session = "XX"
-                    Runner.print_colored("ERROR: You choose a wrong testbench for single-cycle cpu", 91)
+                    Runner.print_colored("ERROR: You choose a wrong testbench for single-cycle cpu", 31)
                     self.__view_config()
                     self.__exit()
             cpus, useless = Runner.find_dirs(self.verilog_dir)
             cpus = [cpu for cpu in cpus if os.path.isdir(os.path.join(self.verilog_dir, cpu))]
             cpus = [cpu for cpu in cpus if os.sep not in cpu.replace(self.verilog_dir + os.sep, "")]            
             if cpus == []:
-                Runner.print_colored("ERROR: You have no valid cpu for test", 91)
+                Runner.print_colored("ERROR: You have no valid cpu for test", 31)
                 self.__view_config()
                 self.__exit()
 
         if self.session == "??":
             self.__view_config()
-            Runner.print_colored("Press Enter to go on...", 92, end="")
+            Runner.print_colored("Press Enter to go on...", 32, end="")
             input()
     def __exit(self) :
-        Runner.print_colored("Press Enter to exit...", 93, end="")
+        Runner.print_colored("Press Enter to exit...", 33, end="")
         input()        
         sys.exit()
 
@@ -674,16 +708,16 @@ class Config :
         Runner.print_colored("---------", 37, end="")
         Runner.print_colored(f"{self.config_name}", end="")
         Runner.print_colored("----------", 37)
-        Runner.print_colored(f"    type: ", 94, end="")
+        Runner.print_colored(f"    type: ", 34, end="")
         Runner.print_colored(f"{self.session}")
-        Runner.print_colored(f"    info: ", 94, end="")
+        Runner.print_colored(f"    info: ", 34, end="")
         Runner.print_colored(f"{', '.join(self.info)}")
         if self.type == "logisim":
             cpus, useless = Runner.find_files(self.cir_dir, ".circ")
-            Runner.print_colored(f"    cpus: ", 94, end="")
+            Runner.print_colored(f"    cpus: ", 34, end="")
             Runner.print_colored(f"{self.cir_dir}")
             if cpus == []:
-                Runner.print_colored(f"         no valid cpu", 91)
+                Runner.print_colored(f"         no valid cpu", 31)
             ind = 0
             for cpu in cpus:
                 ind += 1
@@ -699,25 +733,25 @@ class Config :
                 tb_str = "P6"
             elif self.tb >= 3:
                 tb_str = "P7"
-            Runner.print_colored(f"    tb: ", 94, end='')
+            Runner.print_colored(f"    tb: ", 34, end='')
             Runner.print_colored(f"{self.tb}({tb_str})")
             cpus, useless = Runner.find_dirs(self.verilog_dir)
             cpus = [cpu for cpu in cpus if os.path.isdir(os.path.join(self.verilog_dir, cpu))]
             cpus = [cpu for cpu in cpus if os.sep not in cpu.replace(self.verilog_dir + os.sep, "")]            
-            Runner.print_colored(f"    cpus: ", 94, end="")
+            Runner.print_colored(f"    cpus: ", 34, end="")
             Runner.print_colored(f"{self.verilog_dir}")
             if cpus == []:
-                Runner.print_colored(f"         no valid cpu", 91)
+                Runner.print_colored(f"         no valid cpu", 31)
             ind = 0
             for cpu in cpus:
                 ind += 1
                 Runner.print_colored(f"         cpu{ind}: ", 36, end="")
                 Runner.print_colored(f"{cpu}")
             
-            Runner.print_colored(f"    ISE: ", 94, end="")
+            Runner.print_colored(f"    ISE: ", 34, end="")
             Runner.print_colored(f"{self.xilinx_path}")
 
-        Runner.print_colored(f"    times:", 94, end="")
+        Runner.print_colored(f"    times:", 34, end="")
         Runner.print_colored(f" {self.test_times}")
         Runner.print_colored(f"---------{''.join(['-' for _ in range(len(self.config_name))])}----------", 37)
 
@@ -730,7 +764,7 @@ class Config :
 | |    | | | |   | |  
 | |___ | |_| |   | |  
 \____|  \___/    |_|  """
-        Runner.print_colored(name, 96)
+        Runner.print_colored(name, 36)
         while True:
             one_flag = False
             two_flag = False
@@ -740,14 +774,14 @@ class Config :
                 Runner.print_colored("-------------------------", 37)
                 for key in self.src_slt.keys():
                     if key.isdigit():
-                        Runner.print_colored(f"[{key}]> ", 94, end="")
+                        Runner.print_colored(f"[{key}]> ", 34, end="")
                     elif key == "q":
-                        Runner.print_colored(f"[{key}]> ", 91, end="")
+                        Runner.print_colored(f"[{key}]> ", 31, end="")
                     elif key == "w":
-                        Runner.print_colored(f"[{key}]> ", 93, end="")
+                        Runner.print_colored(f"[{key}]> ", 33, end="")
                     Runner.print_colored(f"{self.src_slt[key]}")
                 Runner.print_colored("-------------------------", 37)
-                Runner.print_colored("the source you want is: ", 92, end="")
+                Runner.print_colored("the source you want is: ", 32, end="")
                 the_slt_one = input()
                 if the_slt_one in self.src_slt.keys() or the_slt_one == "cscore" or the_slt_one == "lazy":
                     if the_slt_one == "lazy":
@@ -759,14 +793,14 @@ class Config :
                         self.__exit()
                     elif the_slt_one == "w":
                         self.__view_config()
-                        Runner.print_colored("Press Enter to go on...", 92, end="")
+                        Runner.print_colored("Press Enter to go on...", 32, end="")
                         input()
                     else:
                         src_slt = self.src_slt[the_slt_one]
                         one_flag = True
                         break
                 else:
-                    Runner.print_colored("ERROR: Invalid select, Please try again or exit", 91)
+                    Runner.print_colored("ERROR: Invalid select, Please try again or exit", 31)
             if self.__lazy == True:
                 mtd_slt = "lazy test"
                 break
@@ -777,14 +811,14 @@ class Config :
                 Runner.print_colored("-------------------------", 37)
                 for key in self.mtd_slt.keys():
                     if key.isdigit():
-                        Runner.print_colored(f"[{key}]> ", 94, end="")
+                        Runner.print_colored(f"[{key}]> ", 34, end="")
                     elif key == "q":
-                        Runner.print_colored(f"[{key}]> ", 91, end="")
+                        Runner.print_colored(f"[{key}]> ", 31, end="")
                     elif key == "r":
-                        Runner.print_colored(f"[{key}]> ", 93, end="")
+                        Runner.print_colored(f"[{key}]> ", 33, end="")
                     Runner.print_colored(f"{self.mtd_slt[key]}")
                 Runner.print_colored("-------------------------", 37)
-                Runner.print_colored("the method you want is: ", 92, end="")
+                Runner.print_colored("the method you want is: ", 32, end="")
                 the_slt_two = input()
                 if the_slt_two in self.mtd_slt.keys():
                     if the_slt_two == "q":
@@ -796,7 +830,7 @@ class Config :
                         two_flag = True
                         break
                 else:
-                    Runner.print_colored("ERROR: Invalid select, Please try again or exit/back", 91)
+                    Runner.print_colored("ERROR: Invalid select, Please try again or exit/back", 31)
             if one_flag and two_flag:
                 break
         
@@ -910,8 +944,8 @@ if __name__ == "__main__" :
 
     # circ_path = []
     # for possible in possible_circ :
-    #     if possible.replace(os.sep + os.path.basename(possible), "") not in circ_path :
-    #         circ_path.append(possible.replace(os.sep + os.path.basename(possible), ""))
+    #     if os.path.dirname(possible) not in circ_path :
+    #         circ_path.append(os.path.dirname(possible))
     # Runner.print_colored(circ_path)
 
     config = Config()
