@@ -180,8 +180,8 @@ class Test:
             
 
     def test(self):
-        self.machine = Machine()
         try:
+            self.machine = Machine()
             start = datetime.now()
             self.machine.create_test()
             self.machine.start_test()
@@ -202,10 +202,12 @@ class Test:
             self.__update()
             json.dump(self.log, open(os.path.join(hidden_folder, "log.json"), "w", encoding="utf-8"))
         except Exception as e:
-            Runner.print_colored(f"Error: {type(e).__name__}\"{e}\"", 31)
+            Runner.print_colored(f"ERROR: {type(e).__name__}\"{e}\"", 31)
             Runner.print_colored(f"Detailed Stacktree:", 31)
             Runner.print_colored(traceback.format_exc(), 31)
             test_dir = getattr(self.machine, "_Machine__test_dir", None)
+            if test_dir == None:
+                test_dir = ""
             if os.path.exists(test_dir):
                 Runner.safe_rmtree(test_dir, retries=10, delay=0.3)
         Runner.print_colored("Press Enter to exit...", 33, end="")

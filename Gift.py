@@ -1,14 +1,12 @@
 import json
 import subprocess
 import time
-import sys
 from dateutil.relativedelta import relativedelta
 import numpy as np
-import logging
 from datetime import datetime
 import os
+import Runner
 from Printer import Printer
-import curses
 
 class Gift:
     def __init__(self):
@@ -22,7 +20,26 @@ class Gift:
             hidden_folder = os.path.join(os.environ['LOCALAPPDATA'], ".COT")
         else:
             hidden_folder = os.path.join(os.environ['HOME'], ".COT")
-        self.log = json.load(open(os.path.join(hidden_folder, "log.json"), "r", encoding="utf-8"))
+        
+        if not os.path.exists(hidden_folder):
+            Runner.print_colored("ERROR: You have never start COT yet!",31)
+            raise Exception
+        elif not os.path.exists(os.path.join(hidden_folder, "log.json")):
+            Runner.print_colored("ERROR: You have never start COT yet!",31)
+            raise Exception
+        else:
+            self.log = json.load(open(os.path.join(hidden_folder, "log.json"), "r", encoding="utf-8"))
+            if self.log["aks"]["P7"] < 1:
+                Runner.print_colored("ERROR: You have never passed P7 yet!",31)
+                raise Exception
+            else:
+                Runner.print_colored("Congratulation! Gift is loading...", 32)
+                Runner.print_colored("3")
+                time.sleep(1)
+                Runner.print_colored("2")
+                time.sleep(1)
+                Runner.print_colored("1")
+                time.sleep(1)
         # print(self.log)
 
     def gift(self):

@@ -302,21 +302,29 @@ class XilinxRunner(Runner) :
         self._asm_dir = asm_dir
 
     def fuse(self):
-        more, cpus = find_dirs(self.__cpu_path)
-        cpus = [cpu for cpu in cpus if os.path.isdir(os.path.join(self.__cpu_path, cpu))]
-        cpus = [cpu for cpu in cpus if os.sep not in cpu.replace(self.__cpu_path + os.sep, "")]
-
+        mips_cpus = find_file_with_depth(self.__cpu_path, "mips.v", 4)
+        cpus = []
+        cpus_path = []
+        for mips in mips_cpus:
+            if os.path.dirname(mips) not in cpus:
+                cpus.append(self.__cpu_in_dir + os.path.dirname(mips).replace(self.__cpu_path, "").replace(os.sep, "@"))
+                cpus_path.append(os.path.dirname(mips))
         print_colored()
         print_colored("ISE: ", 34, end="")
         print_colored("Start fusing...")
+        ind = -1
         self.__cpus = cpus
         for cpu in cpus:
+            ind += 1
             print_colored(f"{cpu}: ", 35, end="")
             print_colored("Start creating .prj and .tcl...", 37)
             safe_makedirs(os.path.join(self._dir, self.__cpu_in_dir, cpu, "source"))
-            ori_cpu_files, more = find_files(os.path.join(self.__cpu_path, cpu), ".v")
-            cpu_files = []
-            flag = False
+            ori_cpu_files = []
+            for root, dirs, files in os.walk(cpus_path[ind]):
+                for file in files:
+                    if file.endswith(".v"):
+                        ori_cpu_files.append(os.path.join(root, file))
+                del dirs[:]
 
             has_tb = False
             for file in ori_cpu_files:
@@ -504,6 +512,80 @@ def find_dirs(path, key="") :
                 results.append(os.path.join(root, _dir))
                 names.append(_dir)
     return results, names
+
+def find_option_with_depth(root_dir, option, max_depth=2):
+    result = []
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        # 计算当前目录的深度
+        depth = dirpath[len(root_dir):].count(os.sep)
+        if depth > max_depth:
+            del dirnames[:]  # 不递归更深的目录
+            continue
+        if "$RECYCLE.BIN" in dirpath :
+            del dirnames[:]
+            del filenames[:]
+        if "bin" in dirnames :
+            del dirnames[:]
+            del filenames[:]
+
+        files = [file for file in filenames if option in file]
+        for file in files :
+            result.append(os.path.join(dirpath, file))
+    return result
+
+def find_file_with_depth(root_dir, target_file, max_depth=2):
+    result = []
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        # 计算当前目录的深度
+        depth = dirpath[len(root_dir):].count(os.sep)
+        if depth > max_depth:
+            del dirnames[:]  # 不递归更深的目录
+            continue
+        if "$RECYCLE.BIN" in dirpath :
+            del dirnames[:]
+            del filenames[:]
+        if "bin" in dirnames :
+            del dirnames[:]
+            del filenames[:]
+        if target_file in filenames:
+            result.append(os.path.join(dirpath, target_file))
+    return result
+
+def find_directory_with_depth(root_dir, target_dir, max_depth=3):
+    result = []
+    for root, dirs, files in os.walk(root_dir):
+        depth = root[len(root_dir):].count(os.sep)
+        if depth > max_depth:
+            del dirs[:]  # 停止更深层的遍历
+            continue
+        flag = False
+        if target_dir in dirs:
+            flag = True
+            result.append(os.path.join(root, target_dir))
+        if flag :
+            del dirs[:]
+    return result
+
+def find_path_with_depth(root_dir, target_path, max_depth=3):
+    result = []
+    for root, dirs, files in os.walk(root_dir):
+        depth = root[len(root_dir):].count(os.sep)
+        if depth > max_depth:
+            del dirs[:]  # 停止更深的搜索
+            continue
+
+        sub_dirs = target_path.split(os.sep)
+        current_dir = root
+        found = True
+        for sub_dir in sub_dirs:
+            current_dir = os.path.join(current_dir, sub_dir)
+            if not os.path.exists(current_dir):
+                found = False
+                break
+
+        if found:
+            result.append(current_dir)
+    return result
 
 def safe_execute(cmd, file, cwd=".", retries=5, delay=0.1) :
     for _ in range(retries) :

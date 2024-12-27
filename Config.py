@@ -3,6 +3,7 @@ import json
 import Runner
 import re
 import sys
+from Gift import Gift
 class Config :
     def __init__(self) :
         self.xilinx_path = ""
@@ -40,6 +41,7 @@ class Config :
         self.src = ""
         self.mtd = ""
 
+        self.__config = None
         self.__lazy = False
         self.__default_p3 = {
             "type": "logisim",
@@ -182,7 +184,7 @@ class Config :
                 if os.path.exists(f"{letter}:\\"):
                     drives.append(f"{letter}:\\")
             for drive in drives:
-                result.extend(find_directory_with_depth(drive, "Xilinx"))
+                result.extend(Runner.find_directory_with_depth(drive, "Xilinx"))
         else :
             result.extend(find_directory_with_depth("/", "Xilinx"))
         path = ""
@@ -229,7 +231,7 @@ class Config :
                 if os.path.exists(f"{letter}:\\"):
                     drives.append(f"{letter}:\\")
             for drive in drives:
-                possible_circ = find_option_with_depth(drive, ".circ", max_depth=4)
+                possible_circ = Runner.find_option_with_depth(drive, ".circ", max_depth=4)
                 result.extend(possible_circ)
         else:
             result.extend(find_option_with_depth("/", ".circ", max_depth=4))
@@ -280,7 +282,7 @@ class Config :
                 if os.path.exists(f"{letter}:\\"):
                     drives.append(f"{letter}:\\")
             for drive in drives:
-                possible_verilog = find_file_with_depth(drive, "mips.v", max_depth=4)
+                possible_verilog = Runner.find_file_with_depth(drive, "mips.v", max_depth=4)
                 result.extend(possible_verilog)
         else:
             result.extend(find_file_with_depth("/", "mips.v", max_depth=4))
@@ -398,80 +400,80 @@ class Config :
                     "verilog_dir": self.verilog_dir
                 }
                 json.dump(temp, open(os.path.join("configs", f"__default_p{slt}.json"), "w", encoding="utf-8")) 
-                os.chmod(os.path.join("configs", f"__default_p{slt}.json"), 0o444)
-        
+                # os.chmod(os.path.join("configs", f"__default_p{slt}.json"), 0o444)
+        self.__config = os.path.join("configs", f"__default_p{slt}.json")
         self.__set_attr(config, True)
 
 
     def __set_attr(self, file_config, lazy_call=False) :
         if not lazy_call :
             if "lazy-mode" in file_config.keys():
-                    self.__lazy = file_config["lazy-mode"]
-            if not isinstance(self.__lazy, bool):
-                Runner.print_colored("ERROR: Please check attribute \"lazy-mode\" in config", 31)
-                self.__exit()
-            
+                self.__lazy = file_config["lazy-mode"]
+                if not isinstance(self.__lazy, bool):
+                    Runner.print_colored("ERROR: Please check attribute \"lazy-mode\" " + f"in {self.__config}", 31)
+                    self.__exit()
+                
             if self.__lazy :
                 return 
 
         if "type" in file_config.keys():
             self.type = file_config["type"]
         if self.type != "logisim" and self.type != "verilog":
-            Runner.print_colored("ERROR: Please check atttribute \"type\" in config", 31)
+            Runner.print_colored("ERROR: Please check atttribute \"type\" " + f"in {self.__config}", 31)
             self.__exit()
         
         if "flow" in file_config.keys():
             self.flow = file_config["flow"]
         if not isinstance(self.flow, bool):
-            Runner.print_colored("ERROR: Please check attribute \"flow\" in config", 31)
+            Runner.print_colored("ERROR: Please check attribute \"flow\" " + f"in {self.__config}", 31)
             self.__exit()
 
         if "exc" in file_config.keys():
             self.exc = file_config["exc"]
         if not isinstance(self.exc, bool):
-            Runner.print_colored("ERROR: Please check attribute \"exc\" in config", 31)
+            Runner.print_colored("ERROR: Please check attribute \"exc\" " + f"in {self.__config}", 31)
             self.__exit()
 
         if "tb" in file_config.keys():
             self.tb = file_config["tb"]
         if not (int(self.tb) >= 0 and int(self.tb) <= 3) and self.type == "verilog":
-            Runner.print_colored("ERROR: Please check attribute \"tb\" in config", 31)
+            Runner.print_colored("ERROR: Please check attribute \"tb\" " + f"in {self.__config}", 31)
             self.__exit()
 
         if "xilinx_path" in file_config.keys():
             self.xilinx_path = file_config["xilinx_path"]
         if not os.path.exists(self.xilinx_path) and self.type == "verilog":
-            Runner.print_colored("ERROR: Please check attribute \"xilinx_path\" in config", 31)
+            Runner.print_colored("ERROR: Please check attribute \"xilinx_path\" " + f"in {self.__config}", 31)
             self.__exit()
         
         if "circ_dir" in file_config.keys():
             self.cir_dir = file_config["circ_dir"]
         if not os.path.exists(self.cir_dir) and self.type == "logisim":
-            Runner.print_colored("ERROR: Please check attribute \"circ_dir\" in config", 31)
+            Runner.print_colored("ERROR: Please check attribute \"circ_dir\" " + f"in {self.__config}", 31)
             self.__exit()
 
         if "verilog_dir" in file_config.keys():
             self.verilog_dir = file_config["verilog_dir"]
         if not os.path.exists(self.verilog_dir) and self.type == "verilog":
-            Runner.print_colored("ERROR: Please check attribute \"verilog_dir\" in config", 31)
+            Runner.print_colored("ERROR: Please check attribute \"verilog_dir\" " + f"in {self.__config}", 31)
             self.__exit()
 
         if "test_times" in file_config.keys():
             self.test_times = file_config["test_times"]
         if not str(self.test_times).isalnum():
-            Runner.print_colored("ERROR: Please check attribute \"test_times\" in config", 31)
+            Runner.print_colored("ERROR: Please check attribute \"test_times\" " + f"in {self.__config}", 31)
             self.__exit()
 
         if "self_util" in file_config.keys():
             self.self_util = file_config["self_util"]
         if not os.path.exists(self.self_util) and self.self_util != "":
-            Runner.print_colored("ERROR: Please check attribute \"self_util\" in config", 31)
+            Runner.print_colored("ERROR: Please check attribute \"self_util\" " + f"in {self.__config}", 31)
             self.__exit()
 
         if "self_dir" in file_config.keys():
             self.self_dir = file_config["self_dir"]
         if not os.path.exists(self.self_dir) and self.self_dir != "":
-            Runner.print_colored("ERROR: Please check attribute \"self_dir\" in config", 31)
+            Runner.print_colored("ERROR: Please check attribute \"self_dir\" " + f"in {self.__config}", 31)
             self.__exit()
 
         if "random_set" in file_config.keys():
@@ -491,10 +493,14 @@ class Config :
     def __read_config(self) :
         Runner.print_colored()
         config = []
-        for root, dirs, files in os.walk("configs") :
-            for file in files :
-                if file.endswith(".json") :
-                    config.append(os.path.join(root, file))
+        if os.path.exists("configs"):
+            for root, dirs, files in os.walk("configs") :
+                for file in files :
+                    if file.endswith(".json") and not file.startswith("__"):
+                        config.append(os.path.join(root, file))
+        else:
+            Runner.print_colored("ERROR: You don't have directory .\\configs", 31)
+            self.__exit()
         file_config = {}
         if config :
             the_read = ""
@@ -504,17 +510,19 @@ class Config :
                     break
             if not the_read :
                 the_read = config[0] 
-
+            self.__config = the_read
             self.config_name = os.path.basename(the_read)
             with open(the_read, "r", encoding="utf-8") as file :
                 try:
                     file_config:dict = json.load(file)
                 except Exception as e:
-                    Runner.print_colored("ERROR: Invalid config", 31)
+                    Runner.print_colored("ERROR: Invalid config because of JSON", 31)
                     Runner.print_colored(e, 31)
                     self.__exit()
-            file_config = self.__format_set(file_config)
             self.__set_attr(file_config)
+            if not self.__lazy:
+                file_config = self.__format_set(file_config)
+
         else :
             Runner.print_colored("ERROR: No file can be used in .\\configs", 31)
             self.__exit()
@@ -550,7 +558,8 @@ class Config :
             mips_set = file_config["mips_set"]
             del file_config["mips_set"]
         else:
-            Runner.print_colored("ERROR: Please check attribute \"mips_set\" in config", 31)
+            Runner.print_colored("ERROR: Please check attribute \"mips_set\" " + f"in {self.__config}", 31)
+            self.__exit()
         
         for mips in mips_set:
             for key in trans_set.keys():
@@ -649,7 +658,7 @@ class Config :
                     Runner.print_colored("ERROR: You don't have testbench, and you won't accept a testbench added by Machine", 31)
                     self.__view_config()
                     self.__exit()
-            if self.flow == True:
+            elif self.flow == True:
                 if self.tb == 1:
                     if not self.exc:
                         self.session = "P5"
@@ -686,9 +695,11 @@ class Config :
                     Runner.print_colored("ERROR: You choose a wrong testbench for single-cycle cpu", 31)
                     self.__view_config()
                     self.__exit()
-            cpus, useless = Runner.find_dirs(self.verilog_dir)
-            cpus = [cpu for cpu in cpus if os.path.isdir(os.path.join(self.verilog_dir, cpu))]
-            cpus = [cpu for cpu in cpus if os.sep not in cpu.replace(self.verilog_dir + os.sep, "")]            
+            mips_cpus = Runner.find_file_with_depth(self.verilog_dir, "mips.v", 4)
+            cpus = []
+            for mips in mips_cpus:
+                if os.path.dirname(mips) not in cpus:
+                    cpus.append(os.path.dirname(mips))         
             if cpus == []:
                 Runner.print_colored("ERROR: You have no valid cpu for test", 31)
                 self.__view_config()
@@ -735,9 +746,14 @@ class Config :
                 tb_str = "P7"
             Runner.print_colored(f"    tb: ", 34, end='')
             Runner.print_colored(f"{self.tb}({tb_str})")
-            cpus, useless = Runner.find_dirs(self.verilog_dir)
-            cpus = [cpu for cpu in cpus if os.path.isdir(os.path.join(self.verilog_dir, cpu))]
-            cpus = [cpu for cpu in cpus if os.sep not in cpu.replace(self.verilog_dir + os.sep, "")]            
+            # cpus, useless = Runner.find_dirs(self.verilog_dir)
+            # cpus = [cpu for cpu in cpus if os.path.isdir(os.path.join(self.verilog_dir, cpu))]
+            # cpus = [cpu for cpu in cpus if os.sep not in cpu.replace(self.verilog_dir + os.sep, "")]       
+            mips_cpus = Runner.find_file_with_depth(self.verilog_dir, "mips.v", 4)
+            cpus = []
+            for mips in mips_cpus:
+                if os.path.dirname(mips) not in cpus:
+                    cpus.append(os.path.dirname(mips))
             Runner.print_colored(f"    cpus: ", 34, end="")
             Runner.print_colored(f"{self.verilog_dir}")
             if cpus == []:
@@ -788,7 +804,7 @@ class Config :
                         self.__lazy = True
                         self.__prepare()
                     elif the_slt_one == "cscore":
-                        pass
+                        Gift().gift()
                     elif the_slt_one == "q":
                         self.__exit()
                     elif the_slt_one == "w":
@@ -852,79 +868,7 @@ class Config :
         elif mtd_slt == "lazy test" :
             self.mtd = "lazyTest"
 
-def find_option_with_depth(root_dir, option, max_depth=2):
-    result = []
-    for dirpath, dirnames, filenames in os.walk(root_dir):
-        # 计算当前目录的深度
-        depth = dirpath[len(root_dir):].count(os.sep)
-        if depth > max_depth:
-            del dirnames[:]  # 不递归更深的目录
-            continue
-        if "$RECYCLE.BIN" in dirpath :
-            del dirnames[:]
-            del filenames[:]
-        if "bin" in dirnames :
-            del dirnames[:]
-            del filenames[:]
 
-        files = [file for file in filenames if option in file]
-        for file in files :
-            result.append(os.path.join(dirpath, file))
-    return result
-
-def find_file_with_depth(root_dir, target_file, max_depth=2):
-    result = []
-    for dirpath, dirnames, filenames in os.walk(root_dir):
-        # 计算当前目录的深度
-        depth = dirpath[len(root_dir):].count(os.sep)
-        if depth > max_depth:
-            del dirnames[:]  # 不递归更深的目录
-            continue
-        if "$RECYCLE.BIN" in dirpath :
-            del dirnames[:]
-            del filenames[:]
-        if "bin" in dirnames :
-            del dirnames[:]
-            del filenames[:]
-        if target_file in filenames:
-            result.append(os.path.join(dirpath, target_file))
-    return result
-
-def find_directory_with_depth(root_dir, target_dir, max_depth=3):
-    result = []
-    for root, dirs, files in os.walk(root_dir):
-        depth = root[len(root_dir):].count(os.sep)
-        if depth > max_depth:
-            del dirs[:]  # 停止更深层的遍历
-            continue
-        flag = False
-        if target_dir in dirs:
-            flag = True
-            result.append(os.path.join(root, target_dir))
-        if flag :
-            del dirs[:]
-    return result
-
-def find_path_with_depth(root_dir, target_path, max_depth=3):
-    result = []
-    for root, dirs, files in os.walk(root_dir):
-        depth = root[len(root_dir):].count(os.sep)
-        if depth > max_depth:
-            del dirs[:]  # 停止更深的搜索
-            continue
-
-        sub_dirs = target_path.split(os.sep)
-        current_dir = root
-        found = True
-        for sub_dir in sub_dirs:
-            current_dir = os.path.join(current_dir, sub_dir)
-            if not os.path.exists(current_dir):
-                found = False
-                break
-
-        if found:
-            result.append(current_dir)
-    return result
 
 
 if __name__ == "__main__" :

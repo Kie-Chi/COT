@@ -1,14 +1,20 @@
 {
-    "type": "verilog",
-    "flow": true,
-    "exc": true,
+   "type": "verilog",
     "tb": 3,
-    "test_times": 1,
+    "flow": true,
+
+    "exc": true,
+
+    
     "xilinx_path": "D:\\Xilinx\\14.7\\ISE_DS\\ISE",
+
     "circ_dir": "circ",
-    "verilog_dir": "",
-    "self_util": "util\\mips_tb_1.v",
-    "self_dir": "self",
+
+    
+    "verilog_dir": "verilog",
+
     "mips_set": ["add", "sub", "and", "or", "slt", "sltu", "ori", "addi", "andi", "lui", "sw", "sb", "sh", "lw", "lb", "lh","beq",
-        "bne","mult", "multu", "div", "divu", "mfhi", "mflo", "mthi", "mtlo", "jal", "jr", "nop"]
+        "bne","mult", "multu", "div", "divu", "mfhi", "mflo", "mthi", "mtlo", "jal", "jr", "nop"],
+
+    "test_times": 3
 }
