@@ -1,6 +1,9 @@
 # COT使用指南
 [toc]
 
+## 云盘链接
+https://bhpan.buaa.edu.cn/link/AAD1541E4EDC8549DC9C3823DBA5A5A572
+
 ## <font color = red> 快速开始 </font>
 1. 根据你的操作系统选择相应的测评机，目前支持Windows，Linux版本
    - `COT_Windows`
