@@ -11,6 +11,10 @@ pip install blessed
 pip install windows-curses
 ```
 
+```py
+python start.py
+```
+
 ## 云盘链接(有bug版本)
 https://bhpan.buaa.edu.cn/link/AAD1541E4EDC8549DC9C3823DBA5A5A572
 
