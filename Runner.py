@@ -416,7 +416,8 @@ class XilinxRunner(Runner) :
         # print_colored(ext)
         # os.system(ext)
         if os.name == str("nt"):
-            pass
+            os.environ["LD_LIBRARY_PATH"] = os.path.join(self._path, "lib", "nt64")
+            os.environ["XILINX"] = self._path
         else:
             os.environ["LD_LIBRARY_PATH"] = os.path.join(self._path, "lib", "lin64")
             os.environ["XILINX"] = self._path
