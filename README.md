@@ -1,7 +1,17 @@
 # COT使用指南
 [toc]
 
-## 云盘链接
+## 运行与使用
+```py
+pip install -r requirements
+```
+- 如果为Windows系统，无法安装`curses`可以安装`windows-curses`
+```py
+pip install blessed
+pip install windows-curses
+```
+
+## 云盘链接(有bug版本)
 https://bhpan.buaa.edu.cn/link/AAD1541E4EDC8549DC9C3823DBA5A5A572
 
 ## <font color = red> 快速开始 </font>
