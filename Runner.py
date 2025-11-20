@@ -384,6 +384,12 @@ class XilinxRunner(Runner) :
             "mips_tb"
         ]
         fuse = " ".join(fuse)
+        if os.name == str("nt"):
+            os.environ["LD_LIBRARY_PATH"] = os.path.join(self._path, "lib", "nt64")
+            os.environ["XILINX"] = self._path
+        else:
+            os.environ["LD_LIBRARY_PATH"] = os.path.join(self._path, "lib", "lin64")
+            os.environ["XILINX"] = self._path
         safe_execute(fuse, os.path.join(self._dir, self.__cpu_in_dir, cpu, "fuse_info.txt"), cwd=os.path.join(self._dir, self.__cpu_in_dir, cpu))
         path = os.path.join(self._dir, self.__cpu_in_dir, cpu, "mips.exe")
         if not os.path.exists(path):
