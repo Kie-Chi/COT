@@ -1,0 +1,12 @@
+{
+    "type": "verilog",
+    "lazy-mode": false,
+    "flow": false,
+    "exc": false,
+    "tb": 1,
+    "test_times": 30,
+    "xilinx_path": "D:\\Xilinx\\14.7\\ISE_DS\\ISE",
+    "circ_dir": "",
+    "verilog_dir": "D:\\code\\CPU\\P4",
+    "mips_set": ["add", "sub", "and", "or", "addi", "lui", "sw", "lw","beq","jal", "jr", "nop"]
+}

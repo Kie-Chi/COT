@@ -519,9 +519,9 @@ class Config :
                     Runner.print_colored("ERROR: Invalid config because of JSON", 31)
                     Runner.print_colored(e, 31)
                     self.__exit()
-            self.__set_attr(file_config)
             if not self.__lazy:
                 file_config = self.__format_set(file_config)
+            self.__set_attr(file_config)
 
         else :
             Runner.print_colored("ERROR: No file can be used in .\\configs", 31)
@@ -581,8 +581,8 @@ class Config :
                         unit[key] = []
                         unit[key].append(kide)
                     break
-        file_config["random_set"] = trans
-        file_config["unit_set"] = unit
+        file_config["random_set"] = trans.copy()
+        file_config["unit_set"] = unit.copy()
         return file_config
 
     def __init_select(self, src=""):
