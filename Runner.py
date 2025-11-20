@@ -466,7 +466,11 @@ class XilinxRunner(Runner) :
                     print_colored("WARNING: No output got", 33)
                 contents = [content for content in contents if "@" in content and "$ 0" not in content]
                 if self._is_flow == True :
-                    contents = [(int(content.split("@")[0].strip()), 1 if "*" in content.split("@")[1] else 0, "@" + content.split("@")[1]) for content in contents]
+                    try:
+                        contents = [(int(content.split("@")[0].strip()), 1 if "*" in content.split("@")[1] else 0, "@" + content.split("@")[1]) for content in contents]
+                    except ValueError as e:
+                        print_colored("WARNING: Invalid timestamp in output", 33)
+                        raise
                 else :
                     contents = [(0, 0, "@" + content.split("@")[1]) for content in contents]
                 filted = contents
