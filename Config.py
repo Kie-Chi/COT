@@ -519,6 +519,8 @@ class Config :
                     Runner.print_colored("ERROR: Invalid config because of JSON", 31)
                     Runner.print_colored(e, 31)
                     self.__exit()
+            if "lazy-mode" in file_config.keys():
+                self.__lazy = file_config["lazy-mode"] if isinstance(file_config["lazy-mode"], bool) else False
             if not self.__lazy:
                 file_config = self.__format_set(file_config)
             self.__set_attr(file_config)

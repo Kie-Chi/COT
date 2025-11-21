@@ -209,7 +209,7 @@ def _isim_task(params: Tuple[str, str, str, str, str, bool, str, Iterable[str]])
         with open(os.path.join(the_dir, cpu_in_dir, cpu, "output.txt"), "w", encoding="utf-8") as file:
             file.writelines(filted)
         safe_copy(os.path.join(the_dir, cpu_in_dir, cpu, "output.txt"), os.path.join(the_dir, "log", base_cpu, f"{name}-{base_cpu}-out.txt"))
-    safe_rmtree(os.path.join(the_dir, cpu_in_dir, cpu), 20, 0.)
+    pass
 
 class Runner :
     def __init__(self, path: str, mars:str, the_dir: str, isFlow: bool, Except: bool, pool: Optional[object]=None) :
@@ -230,7 +230,7 @@ class Runner :
             hex_txt = os.path.join(hex_dst, f"{os.path.basename(code).replace('.asm', '.txt')}")
             tasks.append((code, hex_txt, self._mars, self._dir))
         if self._pool is not None:
-            self._pool.map(_dump_hex_task, tasks)
+            list(self._pool.map(_dump_hex_task, tasks))
         else:
             for params in tasks:
                 _dump_hex_task(params)
@@ -247,7 +247,7 @@ class Runner :
             log_txt = os.path.join(out_log, f"{os.path.basename(code).replace('.asm', '.txt')}")
             tasks.append((code, log_txt, self._mars, self._is_flow, self._is_except))
         if self._pool is not None:
-            self._pool.map(_run_asm_task, tasks)
+            list(self._pool.map(_run_asm_task, tasks))
         else:
             for params in tasks:
                 _run_asm_task(params)
@@ -430,7 +430,7 @@ class XilinxRunner(Runner) :
         tests, _ = find_files(os.path.join(self._dir, "hex"))
         test_count = len(tests)
         cores = os.cpu_count() or 1
-        replicas = max(1, min(test_count if test_count > 0 else 1, cores // len(base_cpus)))
+        replicas = min(4, min(test_count if test_count > 0 else 1, cores // len(base_cpus)))
         print_colored()
         print_colored("ISE: ", 34, end="")
         print_colored("Start fusing...")
@@ -443,7 +443,7 @@ class XilinxRunner(Runner) :
                 tasks.append((cpu_rep, cpus_path[i], self._dir, self.__cpu_in_dir, self.__tb, self._path, self.__fuse_path, self._asm_dir))
         results = []
         if self._pool is not None:
-            results = self._pool.map(_fuse_task, tasks)
+            results = list(self._pool.map(_fuse_task, tasks))
         else:
             results = [ _fuse_task(t) for t in tasks ]
         if not all(results):
@@ -568,10 +568,12 @@ class XilinxRunner(Runner) :
             for i, rep in enumerate(replicas):
                 tasks.append((rep, base, self._dir, self.__cpu_in_dir, self._path, self.__fuse_path, self._is_flow, self._asm_dir, parts[i]))
         if self._pool is not None:
-            self._pool.map(_isim_task, tasks)
+            list(self._pool.map(_isim_task, tasks))
         else:
             for params in tasks:
                 _isim_task(params)
+        for cpu in self.__cpus:
+            safe_rmtree(os.path.join(self._dir, self.__cpu_in_dir, cpu), 20, 0.1)
         print_colored("ISim: ", 34, end="")
         print_colored("All executed!!!")
         safe_rmtree(os.path.join(self._dir, self.__cpu_in_dir), 20, 0.3)
@@ -684,7 +686,10 @@ def safe_execute(cmd, file, cwd=".", retries=5, delay=0.1) :
     for _ in range(retries) :
         try :
             with open(file, "w", encoding="utf-8") as stdout :
-                subprocess.run(cmd, stdout=stdout, stderr=subprocess.STDOUT, cwd=cwd)
+                if isinstance(cmd, str):
+                    subprocess.run(cmd, stdout=stdout, stderr=subprocess.STDOUT, cwd=cwd, shell=True)
+                else:
+                    subprocess.run(cmd, stdout=stdout, stderr=subprocess.STDOUT, cwd=cwd)
             return
         except (FileNotFoundError, PermissionError) :
             time.sleep(delay)
@@ -701,19 +706,27 @@ def safe_rmtree(path, retries=5, delay=0.1):
         for _ in range(retries):
             try:
                 shutil.rmtree(path)
-                return  # 成功删除后返回
-            except (FileNotFoundError, PermissionError):
-                time.sleep(delay)  # 等待一段时间后重试
-        print_colored(f"Failed to delete {path} after {retries} attempts.", 33)
+                return
+            except Exception:
+                time.sleep(delay)
+        try:
+            if os.name == str("nt"):
+                os.system(f'rmdir /S /Q "{path}"')
+            else:
+                os.system(f'rm -rf "{path}"')
+        except Exception:
+            pass
+        if os.path.exists(path):
+            print_colored(f"Failed to delete {path} after {retries} attempts.", 33)
 
 def safe_remove(path, retries=5, delay=0.1):
     if os.path.exists(path):
         for _ in range(retries):
             try:
                 os.remove(path)
-                return  # 成功删除后返回
-            except (FileNotFoundError, PermissionError):
-                time.sleep(delay)  # 等待一段时间后重试
+                return
+            except Exception:
+                time.sleep(delay)
         print_colored(f"Failed to delete {path} after {retries} attempts.", 33)
 
 def safe_copy(src, dst, retries=5, delay=0.1) :

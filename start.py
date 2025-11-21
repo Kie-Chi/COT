@@ -7,6 +7,7 @@ from datetime import datetime
 import time
 import traceback
 import multiprocessing
+import concurrent.futures
 class Test:
     def __init__(self):
         self.machine = None
@@ -181,7 +182,7 @@ class Test:
 
     def test(self):
         try:
-            pool = multiprocessing.Pool(processes=os.cpu_count())
+            pool = concurrent.futures.ThreadPoolExecutor(max_workers=max(2, os.cpu_count() // 2))
             self.machine = Machine(pool)
             start = datetime.now()
             self.machine.create_test()
@@ -213,8 +214,7 @@ class Test:
                 Runner.safe_rmtree(test_dir, retries=10, delay=0.3)
         finally:
             try:
-                pool.close()
-                pool.join()
+                pool.shutdown(wait=True, cancel_futures=True)
             except Exception:
                 pass
         Runner.print_colored("Press Enter to exit...", 33, end="")
@@ -222,4 +222,5 @@ class Test:
         sys.exit()
         
 if __name__ == "__main__" :
+    multiprocessing.freeze_support()
     Test().test()

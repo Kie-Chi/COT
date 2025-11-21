@@ -122,7 +122,7 @@ class Machine :
                 out_path = os.path.join(self.__test_dir, self.__asm_dir, f"lazy_{i}.asm")
                 tasks.append((times, self.__config.exc, self.__config.src == "withMars", out_path, self.__config.random_set, self.__config.unit_set, self.__config.flow))
             if self.__pool is not None:
-                self.__pool.map(_random_test_task, tasks)
+                list(self.__pool.map(_random_test_task, tasks))
             else:
                 for params in tasks:
                     _random_test_task(params)
@@ -135,7 +135,7 @@ class Machine :
                 out_path = os.path.join(self.__test_dir, self.__asm_dir, f"random_{i}.asm")
                 tasks.append((times, self.__config.exc, self.__config.src == "withMars", out_path, self.__config.random_set, self.__config.unit_set, self.__config.flow))
             if self.__pool is not None:
-                self.__pool.map(_random_test_task, tasks)
+                list(self.__pool.map(_random_test_task, tasks))
             else:
                 for params in tasks:
                     _random_test_task(params)
