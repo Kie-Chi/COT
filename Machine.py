@@ -118,7 +118,7 @@ class Machine :
                     Runner.safe_makedirs(os.path.join(self.__test_dir, "tbs"))
                     datamaker.int_test(800, False, True, os.path.join(self.__test_dir, self.__asm_dir), os.path.join(self.__test_dir, "tbs"))
             tasks = []
-            for i in range(10):
+            for i in range(50):
                 out_path = os.path.join(self.__test_dir, self.__asm_dir, f"lazy_{i}.asm")
                 tasks.append((times, self.__config.exc, self.__config.src == "withMars", out_path, self.__config.random_set, self.__config.unit_set, self.__config.flow))
             if self.__pool is not None:
