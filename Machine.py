@@ -12,15 +12,23 @@ import Runner
 from DataMaker import DataMaker
 from Config import Config
 import time
+from typing import Tuple
+from DataMaker import DataMaker
+
+def _random_test_task(params: Tuple[int, bool, bool, str, int, int, bool]):
+    times, exc, with_mars, out_path, random_set, unit_set, flow = params
+    datamaker = DataMaker(random_set, unit_set, flow)
+    datamaker.random_test(times, exc, with_mars, out_path)
 
 class Machine :
-    def __init__(self) :
+    def __init__(self, pool=None) :
         self.__test_dir = "2024-11-27-23-43-04-withOthers-excTest"
         self.__config = Config()
         self.__cpu_dir = ""
         self.__asm_dir = "exc"            
         self.__runner = None
         self.__test_times = 0
+        self.__pool = pool
 
     
     def create_test(self) :
@@ -47,10 +55,10 @@ class Machine :
 
     def __create_runner(self) :
         if self.__config.type == "logisim" :
-            self.__runner = LogisimRunner(self.__config.logisim_path, self.__config.mars_path, self.__test_dir, self.__config.flow, self.__config.exc)
+            self.__runner = LogisimRunner(self.__config.logisim_path, self.__config.mars_path, self.__test_dir, self.__config.flow, self.__config.exc, self.__pool)
             self.__cpu_dir = self.__config.cir_dir
         elif self.__config.type == "verilog" :
-            self.__runner = XilinxRunner(self.__config.xilinx_path, self.__config.mars_path, self.__config.verilog_dir, self.__test_dir, self.__config.flow, self.__config.exc, self.__config.tb, self.__asm_dir)
+            self.__runner = XilinxRunner(self.__config.xilinx_path, self.__config.mars_path, self.__config.verilog_dir, self.__test_dir, self.__config.flow, self.__config.exc, self.__config.tb, self.__asm_dir, self.__pool)
             self.__cpu_dir = self.__config.verilog_dir    
 
     def __create_testdir(self) :
@@ -109,14 +117,28 @@ class Machine :
                 if self.__config.src != "withMars":
                     Runner.safe_makedirs(os.path.join(self.__test_dir, "tbs"))
                     datamaker.int_test(800, False, True, os.path.join(self.__test_dir, self.__asm_dir), os.path.join(self.__test_dir, "tbs"))
+            tasks = []
             for i in range(10):
-                datamaker.random_test(times, self.__config.exc, self.__config.src == "withMars", os.path.join(self.__test_dir, self.__asm_dir, f"lazy_{i}.asm"))
+                out_path = os.path.join(self.__test_dir, self.__asm_dir, f"lazy_{i}.asm")
+                tasks.append((times, self.__config.exc, self.__config.src == "withMars", out_path, self.__config.random_set, self.__config.unit_set, self.__config.flow))
+            if self.__pool is not None:
+                self.__pool.map(_random_test_task, tasks)
+            else:
+                for params in tasks:
+                    _random_test_task(params)
         elif self.__config.mtd == "randomTest" :
             self.__asm_dir = "random"
             Runner.safe_makedirs(os.path.join(self.__test_dir, self.__asm_dir))
             x = self.__config.test_times
+            tasks = []
             for i in range(x):
-                datamaker.random_test(times, self.__config.exc, self.__config.src == "withMars", os.path.join(self.__test_dir, self.__asm_dir, f"random_{i}.asm"))
+                out_path = os.path.join(self.__test_dir, self.__asm_dir, f"random_{i}.asm")
+                tasks.append((times, self.__config.exc, self.__config.src == "withMars", out_path, self.__config.random_set, self.__config.unit_set, self.__config.flow))
+            if self.__pool is not None:
+                self.__pool.map(_random_test_task, tasks)
+            else:
+                for params in tasks:
+                    _random_test_task(params)
 
         elif self.__config.mtd == "unitTest" :
             self.__asm_dir = "unit"
@@ -207,6 +229,7 @@ class Machine :
         else :
             self.__runner.dump_hex(src, hex_dst)
         Runner.safe_remove(os.path.join(self.__test_dir, "info.txt"))
+        Runner.safe_rmtree(os.path.join(self.__test_dir, "info"))
 
     def __run_logisim(self) :
         self.__load_all_circ()

@@ -15,7 +15,11 @@ pip install windows-curses
 python start.py
 ```
 
-## 云盘链接(有bug版本)
+## 注意事项
+- cpu命名文件夹，请勿出现`-`和`@`字符，否则将导致测评机故障
+- 多进程模式下，存在多个样本，以`@@num`结尾，此时**慎用** withOthers模式，否则所以副本都会进行比较
+
+## 云盘链接(有bug版本，单进程老版本)
 https://bhpan.buaa.edu.cn/link/AAD1541E4EDC8549DC9C3823DBA5A5A572
 
 ## <font color = red> 快速开始 </font>

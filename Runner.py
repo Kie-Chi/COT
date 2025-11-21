@@ -6,73 +6,234 @@ import shutil
 import subprocess
 import threading
 from functools import wraps
+from typing import Optional, Iterable, Tuple
+
+def _dump_hex_task(params: Tuple[str, str, str, str]):
+    code, hex_txt, mars, the_dir = params
+    mips = [
+        "java",
+        "-jar",
+        os.path.join("..", mars),
+        "mc",
+        "LargeText",
+        "a",
+        "dump",
+        ".text",
+        "HexText",
+        hex_txt.replace(the_dir+os.sep, ""),
+        code.replace(the_dir+os.sep, ""),
+    ]
+    mips = " ".join(mips)
+    info_dir = os.path.join(the_dir, "info")
+    os.makedirs(info_dir, exist_ok=True)
+    info_file = os.path.join(info_dir, f"{os.path.basename(code)}.info.txt")
+    print_colored(f"{os.path.basename(code)}: ", 35, end="")
+    print_colored("Mars is dumping data...", 37)
+    safe_execute(mips, info_file, cwd=the_dir)
+    contents = safe_read(info_file)
+    contents = [content for content in contents if "Error" in content]
+    if contents != []:
+        for content in contents:
+            print_colored(content)
+        raise Exception
+    contents = safe_read(hex_txt)
+    lens = len(contents)
+    extra = ["00000000\n" for _ in range(4094 - lens)]
+    extra.append("1000ffff\n")
+    extra.append("00000000\n")
+    contents.extend(extra)
+    safe_write(hex_txt, contents)
+
+def _run_asm_task(params: Tuple[str, str, str, bool, bool]):
+    code, log_txt, mars, is_flow, is_except = params
+    ext = [
+        "java",
+        "-jar",
+        mars,
+        "mc",
+        "LargeText",
+        "40000",
+        "lg",
+        code,
+    ]
+    if is_flow:
+        ext.insert(3, "db")
+    if is_except:
+        ext.insert(3, "ex")
+    print_colored(f"{os.path.basename(code)}: ", 35, end="")
+    print_colored("Mars executing asm...", 37)
+    safe_execute(ext, log_txt)
+    contents = ""
+    with open(log_txt, "r", encoding="utf-8") as file:
+        contents = file.readlines()
+    flag = False
+    if "Program terminated when maximum step limit 40000 reached.\n" in contents:
+        if len(contents) > 20000:
+            flag = True
+    if not flag:
+        contents = [content for content in contents if "@" in content]
+        contents = [content for content in contents if "$ 0" not in content]
+        with open(log_txt, "w", encoding="utf-8") as file:
+            file.writelines(contents)
+    else:
+        safe_remove(code)
+        safe_remove(log_txt)
+        safe_remove(log_txt.replace("stdout", "hex"))
+
+def _fuse_task(params: Tuple[str, str, str, str, int, str, str, str]):
+    cpu, cpu_src_path, the_dir, cpu_in_dir, tb, xilinx_path, fuse_path, asm_dir = params
+    target_root = os.path.join(the_dir, cpu_in_dir, cpu)
+    safe_makedirs(os.path.join(target_root, "source"))
+    ori_cpu_files = []
+    for root, dirs, files in os.walk(cpu_src_path):
+        for file in files:
+            if file.endswith(".v"):
+                ori_cpu_files.append(os.path.join(root, file))
+        del dirs[:]
+    has_tb = False
+    for file in ori_cpu_files:
+        name = os.path.basename(file)
+        if name == "mips_tb.v":
+            has_tb = True
+        safe_copy(file, os.path.join(target_root, "source", name))
+    if tb != 0:
+        safe_copy(os.path.join("util", f"mips_tb_{tb}.v"), os.path.join(target_root, "source", "mips_tb.v"))
+    prj_path = os.path.join(target_root, "mips.prj")
+    tcl_path = os.path.join(target_root, "mips.tcl")
+    with open(prj_path, "w", encoding="utf-8") as prj:
+        for file in ori_cpu_files:
+            name = os.path.basename(file)
+            prj.write('verilog work "' + os.path.join("source", name) + "\"\n")
+        if not has_tb:
+            prj.write('verilog work "' + os.path.join("source", "mips_tb.v") + "\"\n")
+    with open(tcl_path, "w", encoding="utf-8") as tcl:
+        tcl.write("run 300us;\nexit")
+    useless, names = find_files(os.path.join(the_dir, asm_dir))
+    flag = False
+    if not os.path.exists(os.path.join(the_dir, "tbs")):
+        flag = True
+    else:
+        for name in names:
+            if not os.path.exists(os.path.join(the_dir, "tbs", name.replace(".asm", "_tb.v"))):
+                flag = True
+                break
+    if flag:
+        fuse = [
+            fuse_path,
+            "-nodebug",
+            "-prj",
+            "mips.prj",
+            "-o",
+            "mips.exe",
+            "mips_tb",
+            "-mt",
+            "off",
+        ]
+        fuse = " ".join(fuse)
+        if os.name == str("nt"):
+            os.environ["LD_LIBRARY_PATH"] = os.path.join(xilinx_path, "lib", "nt64")
+            os.environ["XILINX"] = xilinx_path
+        else:
+            os.environ["LD_LIBRARY_PATH"] = os.path.join(xilinx_path, "lib", "lin64")
+            os.environ["XILINX"] = xilinx_path
+        safe_execute(fuse, os.path.join(target_root, "fuse_info.txt"), cwd=target_root)
+        path = os.path.join(target_root, "mips.exe")
+        if not os.path.exists(path):
+            print_colored("ERROR: There is something wrong when fusing", 31)
+            errors = []
+            with open(os.path.join(target_root, "fuse.log"), "r", encoding="utf-8") as fse:
+                errors = fse.readlines()
+            errors = [error for error in errors if "ERROR" in error]
+            for error in errors:
+                print_colored(error.strip(), 31)
+            return False
+        safe_remove(os.path.join(target_root, "fuse_info.txt"))
+        safe_remove(os.path.join(target_root, "fuse.log"))
+        safe_remove(os.path.join(target_root, "fuse.xmsgs"))
+        safe_remove(os.path.join(target_root, "fuseRelaunch.cmd"))
+    return True
+
+def _isim_task(params: Tuple[str, str, str, str, str, bool, str, Iterable[str]]):
+    cpu, base_cpu, the_dir, cpu_in_dir, xilinx_path, fuse_path, is_flow, asm_dir, tests = params
+    safe_makedirs(os.path.join(the_dir, "log", base_cpu))
+    def sort_key(file):
+        name = os.path.basename(file).replace(".txt", "")
+        return os.path.exists(os.path.join(the_dir, "tbs", f"{name}_tb.v"))
+    tests = sorted(list(tests), key=sort_key)
+    ind = 0
+    for test in tests:
+        print_colored(f"{cpu}: ", 35, end="")
+        print_colored(f"Executing {os.path.basename(test).replace('.txt', '')}...", 37)
+        name = os.path.basename(test).replace(".txt", "")
+        safe_copy(test, os.path.join(the_dir, cpu_in_dir, cpu, "code.txt"))
+        if os.path.exists(os.path.join(the_dir, "tbs", f"{name}_tb.v")):
+            safe_copy(os.path.join(the_dir, "tbs", f"{name}_tb.v"), os.path.join(the_dir, cpu_in_dir, cpu, "source", "mips_tb.v"))
+            _fuse_task((cpu, os.path.join(the_dir, cpu_in_dir, cpu, "source"), the_dir, cpu_in_dir, 0, xilinx_path, fuse_path, asm_dir))
+        if os.name != str("nt"):
+            test_exe = os.path.join(".", "mips.exe")
+        else:
+            test_exe = "mips.exe"
+        ext = [
+            test_exe,
+            "-nolog",
+            "-tclbatch",
+            "mips.tcl",
+        ]
+        ext = " ".join(ext)
+        if os.name == str("nt"):
+            os.environ["LD_LIBRARY_PATH"] = os.path.join(xilinx_path, "lib", "nt64")
+            os.environ["XILINX"] = xilinx_path
+        else:
+            os.environ["LD_LIBRARY_PATH"] = os.path.join(xilinx_path, "lib", "lin64")
+            os.environ["XILINX"] = xilinx_path
+        safe_execute(ext, os.path.join(the_dir, cpu_in_dir, cpu, "output.txt"), cwd=os.path.join(the_dir, cpu_in_dir, cpu), retries=10, delay=0.1)
+        contents = []
+        with open(os.path.join(the_dir, cpu_in_dir, cpu, "output.txt"), "r", encoding="utf-8") as file:
+            contents = file.readlines()
+        if contents == []:
+            ind += 1
+            print_colored("WARNING: No output got", 33)
+        contents = [content for content in contents if "@" in content and "$ 0" not in content]
+        if is_flow == True:
+            try:
+                contents = [(int(content.split("@")[0].strip()), 1 if "*" in content.split("@")[1] else 0, "@" + content.split("@")[1]) for content in contents]
+            except ValueError as e:
+                print_colored("WARNING: Invalid timestamp in output", 33)
+                raise
+        else:
+            contents = [(0, 0, "@" + content.split("@")[1]) for content in contents]
+        filted = contents
+        if is_flow == True:
+            filted.sort(key=lambda x: (x[0], x[1]))
+        filted = [fil[2] for fil in filted]
+        with open(os.path.join(the_dir, cpu_in_dir, cpu, "output.txt"), "w", encoding="utf-8") as file:
+            file.writelines(filted)
+        safe_copy(os.path.join(the_dir, cpu_in_dir, cpu, "output.txt"), os.path.join(the_dir, "log", base_cpu, f"{name}-{base_cpu}-out.txt"))
+    safe_rmtree(os.path.join(the_dir, cpu_in_dir, cpu), 20, 0.)
 
 class Runner :
-    def __init__(self, path: str, mars:str, the_dir: str, isFlow: bool, Except: bool) :
+    def __init__(self, path: str, mars:str, the_dir: str, isFlow: bool, Except: bool, pool: Optional[object]=None) :
         self._path = path
         self._dir = the_dir
         self._mars = mars
         self._is_flow = isFlow
         self._is_except = Except
+        self._pool = pool
         
     def dump_hex(self, src, hex_dst) :
         os.makedirs(hex_dst, exist_ok=True)
         print_colored()
         print_colored("Mars: ", 34, end="")
         print_colored("Start dumping datas...")
-        for code in src :
-            # flag, test = self.__find_endless(code)
+        tasks = []
+        for code in src:
             hex_txt = os.path.join(hex_dst, f"{os.path.basename(code).replace('.asm', '.txt')}")
-            mips = [
-                "java",
-                "-jar",
-                os.path.join("..", self._mars),
-                "mc",
-                "LargeText",
-                "a",
-                "dump",
-                ".text",
-                "HexText",
-                hex_txt.replace(self._dir+os.sep, ""),
-                code.replace(self._dir+os.sep, ""),
-                # ">",
-                # os.path.join(self._dir ,"info.txt")
-            ]
-            # mips = [
-            #     "java",
-            #     "-jar",
-            #     self._mars,
-            #     "mc",
-            #     "CompactLargeText",
-            #     "a",
-            #     "dump",
-            #     ".text",
-            #     "HexText",
-            #     hex_txt,
-            #     code,
-            #     # ">",
-            #     # os.path.join(self._dir ,"info.txt")
-            # ]
-            mips = " ".join(mips)
-
-            # print_colored()
-            print_colored(f"{os.path.basename(code)}: ", 35, end="")
-            print_colored("Mars is dumping data...", 37)
-            # os.system(mips)
-            safe_execute(mips, os.path.join(self._dir, "info.txt"), cwd=self._dir)
-            contents = safe_read(os.path.join(self._dir, "info.txt"))
-            contents = [content for content in contents if "Error" in content]
-            if contents != []:
-                for content in contents:
-                    print_colored(content)
-                raise Exception
-            contents = safe_read(hex_txt)
-            lens = len(contents)
-            extra = ["00000000\n" for _ in range(4094 - lens)]
-            extra.append("1000ffff\n")
-            extra.append("00000000\n")
-            contents.extend(extra)
-            safe_write(hex_txt, contents)
+            tasks.append((code, hex_txt, self._mars, self._dir))
+        if self._pool is not None:
+            self._pool.map(_dump_hex_task, tasks)
+        else:
+            for params in tasks:
+                _dump_hex_task(params)
         print_colored("Mars: ", 34, end="")
         print_colored("All dumped!!!")
 
@@ -81,59 +242,15 @@ class Runner :
         print_colored()
         print_colored("Mars: ", 34, end="")
         print_colored("Start executing asm...")
-        for code in src :
+        tasks = []
+        for code in src:
             log_txt = os.path.join(out_log, f"{os.path.basename(code).replace('.asm', '.txt')}")
-            # ext = [
-            #     "java",
-            #     "-jar",
-            #     self._mars,
-            #     "mc",
-            #     "CompactLargeText",
-            #     "ig",
-            #     "coL1",
-            #     code,
-            #     # ">",
-            #     # log_txt
-            # ]
-            ext = [
-                "java",
-                "-jar",
-                self._mars,
-                "mc",
-                "LargeText",
-                "40000",
-                "lg",
-                code,
-                # ">",
-                # log_txt
-            ]
-            if self._is_flow :
-                ext.insert(3, "db")
-            if self._is_except :
-                ext.insert(3, "ex")
-            print_colored(f"{os.path.basename(code)}: ", 35, end="")
-            print_colored("Mars executing asm...", 37)
-            # os.system(ext)
-            safe_execute(ext, log_txt)
-            contents = ""
-            with open(log_txt, "r", encoding="utf-8") as file :
-                contents = file.readlines()
-            flag = False
-            if "Program terminated when maximum step limit 40000 reached.\n" in contents:
-                if len(contents) > 20000:
-                    flag = True
-            
-            if not flag:
-                contents = [content for content in contents if "@" in content]
-                contents = [content for content in contents if "$ 0" not in content]
-                with open(log_txt, "w", encoding="utf-8") as file :
-                    file.writelines(contents)
-            else:
-                safe_remove(code)
-                safe_remove(log_txt)
-                safe_remove(log_txt.replace("stdout", "hex"))
-            # print_colored(contents)
-            # print_colored(f"{os.path.basename(code)} :Executed!")
+            tasks.append((code, log_txt, self._mars, self._is_flow, self._is_except))
+        if self._pool is not None:
+            self._pool.map(_run_asm_task, tasks)
+        else:
+            for params in tasks:
+                _run_asm_task(params)
         print_colored("Mars: ", 34, end="")
         print_colored("All executed!!!")
 
@@ -143,8 +260,8 @@ class Runner :
         self._run_asm(src, out_log)
 
 class LogisimRunner(Runner) :
-    def __init__(self, path, mars, the_dir, isFlow, Except) -> None: 
-        super(LogisimRunner, self).__init__(path, mars, the_dir, isFlow, Except)
+    def __init__(self, path, mars, the_dir, isFlow, Except, pool=None) -> None: 
+        super(LogisimRunner, self).__init__(path, mars, the_dir, isFlow, Except, pool)
         
 
     def __read_data(self, path) :
@@ -287,8 +404,8 @@ class LogisimRunner(Runner) :
             print_colored(f"{os.path.basename(cpu)}: ", 34, end="")
             print_colored("All Executed!!!")
 class XilinxRunner(Runner) :
-    def __init__(self, path, mars, cpu_path, the_dir, isFlow, Except, tb, asm_dir) :
-        super(XilinxRunner, self).__init__(path, mars, the_dir, isFlow, Except)
+    def __init__(self, path, mars, cpu_path, the_dir, isFlow, Except, tb, asm_dir, pool=None) :
+        super(XilinxRunner, self).__init__(path, mars, the_dir, isFlow, Except, pool)
         self.__tb = tb
         self.__cpu_path = cpu_path
         self.__cpu_in_dir = os.path.basename(cpu_path)
@@ -303,46 +420,35 @@ class XilinxRunner(Runner) :
 
     def fuse(self):
         mips_cpus = find_file_with_depth(self.__cpu_path, "mips.v", 4)
-        cpus = []
+        base_cpus = []
         cpus_path = []
         for mips in mips_cpus:
-            if os.path.dirname(mips) not in cpus:
-                cpus.append(self.__cpu_in_dir + os.path.dirname(mips).replace(self.__cpu_path, "").replace(os.sep, "@"))
+            if os.path.dirname(mips) not in base_cpus:
+                base_cpus.append(self.__cpu_in_dir + os.path.dirname(mips).replace(self.__cpu_path, "").replace(os.sep, "@"))
                 cpus_path.append(os.path.dirname(mips))
+        # decide replica count by tests and cores
+        tests, _ = find_files(os.path.join(self._dir, "hex"))
+        test_count = len(tests)
+        cores = os.cpu_count() or 1
+        replicas = max(1, min(test_count if test_count > 0 else 1, cores // len(base_cpus)))
         print_colored()
         print_colored("ISE: ", 34, end="")
         print_colored("Start fusing...")
-        ind = -1
-        self.__cpus = cpus
-        for cpu in cpus:
-            ind += 1
-            print_colored(f"{cpu}: ", 35, end="")
-            print_colored("Start creating .prj and .tcl...", 37)
-            safe_makedirs(os.path.join(self._dir, self.__cpu_in_dir, cpu, "source"))
-            ori_cpu_files = []
-            for root, dirs, files in os.walk(cpus_path[ind]):
-                for file in files:
-                    if file.endswith(".v"):
-                        ori_cpu_files.append(os.path.join(root, file))
-                del dirs[:]
-
-            has_tb = False
-            for file in ori_cpu_files:
-                name = os.path.basename(file)
-                if name == "mips_tb.v":
-                    has_tb = True
-                safe_copy(file, os.path.join(self._dir, self.__cpu_in_dir, cpu, "source", name))
-                
-            if self.__tb != 0:
-                safe_copy(os.path.join("util",f"mips_tb_{self.__tb}.v"), os.path.join(self._dir, self.__cpu_in_dir, cpu, "source", "mips_tb.v"))
-
-            if not has_tb:
-                ori_cpu_files.append(os.path.join(self.__cpu_in_dir, "mips_tb.v"))
-            print_colored(f"{cpu}: ", 35, end="")
-            print_colored("Start fusing...", 37)
-            wrong = self.__fuse_ext(cpu, ori_cpu_files)
-            if not wrong:
-                return False
+        fuse_targets = []
+        tasks = []
+        for i, cpu in enumerate(base_cpus):
+            for r in range(replicas):
+                cpu_rep = f"{cpu}@@{r}"
+                fuse_targets.append(cpu_rep)
+                tasks.append((cpu_rep, cpus_path[i], self._dir, self.__cpu_in_dir, self.__tb, self._path, self.__fuse_path, self._asm_dir))
+        results = []
+        if self._pool is not None:
+            results = self._pool.map(_fuse_task, tasks)
+        else:
+            results = [ _fuse_task(t) for t in tasks ]
+        if not all(results):
+            return False
+        self.__cpus = fuse_targets
         print_colored("ISE: ", 34, end="")
         print_colored("All Executed!!!")
         return True
@@ -381,7 +487,9 @@ class XilinxRunner(Runner) :
             "mips.prj",
             "-o",
             "mips.exe",
-            "mips_tb"
+            "mips_tb",
+            "-mt",
+            "off",
         ]
         fuse = " ".join(fuse)
         if os.name == str("nt"):
@@ -445,51 +553,25 @@ class XilinxRunner(Runner) :
         print_colored()
         print_colored("ISim: ", 34, end="")
         print_colored("Start stimulating...")
-        for cpu in self.__cpus :
-            safe_makedirs(os.path.join(self._dir, "log", cpu))
-            tests.sort(key=self.__sort_no_tb)
-            ind = 0
-            for test in tests :
-                print_colored(f"{cpu}: ", 35, end="")
-                print_colored(f"Executing {os.path.basename(test).replace('.txt', '')}...", 37)
-                name = os.path.basename(test).replace(".txt", "")
-                safe_copy(test, os.path.join(self._dir, self.__cpu_in_dir, cpu, "code.txt"))
-                if os.path.exists(os.path.join(self._dir, "tbs", f"{name}_tb.v")):
-                    safe_copy(os.path.join(self._dir, "tbs", f"{name}_tb.v"), os.path.join(self._dir, self.__cpu_in_dir, cpu, "source", "mips_tb.v"))
-                    self.__re_fuse(cpu)
-                self.__isim_ext(cpu)
-                contents = []
-                with open(os.path.join(self._dir, self.__cpu_in_dir, cpu, "output.txt"), "r", encoding="utf-8") as file :
-                    contents = file.readlines()
-                if contents == []:
-                    ind += 1
-                    print_colored("WARNING: No output got", 33)
-                contents = [content for content in contents if "@" in content and "$ 0" not in content]
-                if self._is_flow == True :
-                    try:
-                        contents = [(int(content.split("@")[0].strip()), 1 if "*" in content.split("@")[1] else 0, "@" + content.split("@")[1]) for content in contents]
-                    except ValueError as e:
-                        print_colored("WARNING: Invalid timestamp in output", 33)
-                        raise
-                else :
-                    contents = [(0, 0, "@" + content.split("@")[1]) for content in contents]
-                filted = contents
-                # for content in contents :
-                #     if self._is_pcpass(content[2]) :
-                #         break
-                #     filted.append(content)
-                if self._is_flow == True:
-                    filted.sort(key=lambda x : (x[0], x[1]))
-                filted = [fil[2] for fil in filted]
-
-                with open(os.path.join(self._dir, self.__cpu_in_dir, cpu, "output.txt"), "w", encoding="utf-8") as file :
-                    file.writelines(filted)
-                safe_copy(os.path.join(self._dir, self.__cpu_in_dir, cpu, "output.txt"), os.path.join(self._dir, "log", cpu, f"{name}-{cpu}-out.txt"))
-                # print_colored(f"{cpu}: {os.path.basename(test)} is executed!!!")
-            if ind == len(test):
-                print_colored("ERROR: Something wrong with ISim, Please restart the machine or your PC")
-                raise Exception
-            safe_rmtree(os.path.join(self._dir, self.__cpu_in_dir, cpu), 20, 0.)
+        groups = {}
+        for cpu in self.__cpus:
+            base = cpu.split('@@')[0]
+            groups.setdefault(base, []).append(cpu)
+        tasks = []
+        for base, replicas in groups.items():
+            rcount = len(replicas)
+            if rcount == 0:
+                continue
+            parts = [[] for _ in range(rcount)]
+            for idx, t in enumerate(tests):
+                parts[idx % rcount].append(t)
+            for i, rep in enumerate(replicas):
+                tasks.append((rep, base, self._dir, self.__cpu_in_dir, self._path, self.__fuse_path, self._is_flow, self._asm_dir, parts[i]))
+        if self._pool is not None:
+            self._pool.map(_isim_task, tasks)
+        else:
+            for params in tasks:
+                _isim_task(params)
         print_colored("ISim: ", 34, end="")
         print_colored("All executed!!!")
         safe_rmtree(os.path.join(self._dir, self.__cpu_in_dir), 20, 0.3)

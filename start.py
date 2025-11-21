@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 import time
 import traceback
+import multiprocessing
 class Test:
     def __init__(self):
         self.machine = None
@@ -180,7 +181,8 @@ class Test:
 
     def test(self):
         try:
-            self.machine = Machine()
+            pool = multiprocessing.Pool(processes=os.cpu_count())
+            self.machine = Machine(pool)
             start = datetime.now()
             self.machine.create_test()
             self.machine.start_test()
@@ -209,6 +211,12 @@ class Test:
                 test_dir = ""
             if os.path.exists(test_dir):
                 Runner.safe_rmtree(test_dir, retries=10, delay=0.3)
+        finally:
+            try:
+                pool.close()
+                pool.join()
+            except Exception:
+                pass
         Runner.print_colored("Press Enter to exit...", 33, end="")
         input()
         sys.exit()
