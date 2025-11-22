@@ -514,14 +514,26 @@ class Machine :
 
         if self.__config.src == "withMars" :
             for circ in circ_files :
-                # os.system(f"mkdir -p {test_dir}/dif/{circ}")
                 Runner.safe_makedirs(os.path.join(self.__test_dir, "dif", circ), exist_ok=True)
             stdouts_files, more = Runner.find_files(os.path.join(self.__test_dir, "stdout"))
+            expected_hex, _ = Runner.find_files(os.path.join(self.__test_dir, "hex"))
+            expected_names = set([os.path.basename(x) for x in expected_hex])
+            got_names = set([os.path.basename(x) for x in stdouts_files])
+            missing = sorted(list(expected_names - got_names))
             wrong_files = []
+            for miss in missing:
+                flag = False
+                if miss not in wrong_files:
+                    wrong_files.append(miss)
             for stdout_file in stdouts_files :
                 stdouts = []
                 with open(stdout_file, "r", encoding="utf-8") as std_file :
                     stdouts = std_file.readlines()
+                if stdouts == []:
+                    flag = False
+                    if os.path.basename(stdout_file) not in wrong_files:
+                        wrong_files.append(os.path.basename(stdout_file))
+                    continue
 
                 for root, dirs, files in os.walk(os.path.join(self.__test_dir, "log")) :
                     for file in files :

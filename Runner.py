@@ -23,7 +23,6 @@ def _dump_hex_task(params: Tuple[str, str, str, str, str]):
         hex_txt.replace(the_dir+os.sep, ""),
         code.replace(the_dir+os.sep, ""),
     ]
-    mips = " ".join(mips)
     info_dir = os.path.join(the_dir, "info")
     os.makedirs(info_dir, exist_ok=True)
     info_file = os.path.join(info_dir, f"{os.path.basename(code)}.info.txt")
@@ -357,9 +356,6 @@ class LogisimRunner(Runner) :
             # ">",
             # log_txt
         ]
-        logisim = " ".join(logisim)
-    
-        # os.system(logisim)
         safe_execute(logisim, log_txt)
     
         logs = ""
@@ -713,11 +709,25 @@ def safe_execute(cmd, file, cwd=".", retries=5, delay=0.1) :
         except (FileNotFoundError, PermissionError) :
             time.sleep(delay)
     try:
-        cmd = f"{cmd} > {os.path.basename(file)}"
-        # print(f"cd {cwd} && {cmd}")
-        os.system(f"cd {cwd} && {cmd}")
+        if isinstance(cmd, list):
+            parts = []
+            for c in cmd:
+                s = str(c)
+                if os.name == str("nt"):
+                    if any(ch in s for ch in [' ', '(', ')', '&', '^']):
+                        s = f'"{s}"'
+                else:
+                    import shlex
+                    s = shlex.quote(s)
+                parts.append(s)
+            cmd_str = " ".join(parts)
+        else:
+            cmd_str = str(cmd)
+        out_name = os.path.basename(file)
+        cmd_str = f'{cmd_str} > "{out_name}"'
+        os.system(f'cd "{cwd}" && {cmd_str}')
     except :
-        print_colored("ERROR: can't execute the code correctly!!!", 31)
+        print_colored(f"ERROR: can't execute {cmd} correctly!!!", 31)
         raise Exception
     
 def safe_rmtree(path, retries=5, delay=0.1):
