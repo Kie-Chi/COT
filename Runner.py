@@ -8,10 +8,10 @@ import threading
 from functools import wraps
 from typing import Optional, Iterable, Tuple
 
-def _dump_hex_task(params: Tuple[str, str, str, str]):
-    code, hex_txt, mars, the_dir = params
+def _dump_hex_task(params: Tuple[str, str, str, str, str]):
+    code, hex_txt, mars, the_dir, java_path = params
     mips = [
-        "java",
+        java_path,
         "-jar",
         os.path.join("..", mars),
         "mc",
@@ -44,10 +44,10 @@ def _dump_hex_task(params: Tuple[str, str, str, str]):
     contents.extend(extra)
     safe_write(hex_txt, contents)
 
-def _run_asm_task(params: Tuple[str, str, str, bool, bool]):
-    code, log_txt, mars, is_flow, is_except = params
+def _run_asm_task(params: Tuple[str, str, str, bool, bool, str]):
+    code, log_txt, mars, is_flow, is_except, java_path = params
     ext = [
-        "java",
+        java_path,
         "-jar",
         mars,
         "mc",
@@ -219,6 +219,25 @@ class Runner :
         self._is_flow = isFlow
         self._is_except = Except
         self._pool = pool
+        self._java = self.__resolve_java()
+
+    def __resolve_java(self) -> str:
+        try:
+            import shutil as _sh
+            which = _sh.which("java")
+            if which:
+                return which
+        except Exception:
+            pass
+        java_home = os.environ.get("JAVA_HOME", "")
+        if java_home:
+            candidate = os.path.join(java_home, "bin", "java.exe" if os.name == str("nt") else "java")
+            if os.path.exists(candidate):
+                return candidate
+        local_jre = os.path.join("util", "jre", "bin", "java.exe" if os.name == str("nt") else "java")
+        if os.path.exists(local_jre):
+            return local_jre
+        return "java"
         
     def dump_hex(self, src, hex_dst) :
         os.makedirs(hex_dst, exist_ok=True)
@@ -228,7 +247,7 @@ class Runner :
         tasks = []
         for code in src:
             hex_txt = os.path.join(hex_dst, f"{os.path.basename(code).replace('.asm', '.txt')}")
-            tasks.append((code, hex_txt, self._mars, self._dir))
+            tasks.append((code, hex_txt, self._mars, self._dir, self._java))
         if self._pool is not None:
             list(self._pool.map(_dump_hex_task, tasks))
         else:
@@ -245,7 +264,7 @@ class Runner :
         tasks = []
         for code in src:
             log_txt = os.path.join(out_log, f"{os.path.basename(code).replace('.asm', '.txt')}")
-            tasks.append((code, log_txt, self._mars, self._is_flow, self._is_except))
+            tasks.append((code, log_txt, self._mars, self._is_flow, self._is_except, self._java))
         if self._pool is not None:
             list(self._pool.map(_run_asm_task, tasks))
         else:
@@ -327,7 +346,7 @@ class LogisimRunner(Runner) :
         log_txt = os.path.join(out_log, f"{os.path.basename(path).replace('.circ', '-out.txt')}")
     
         logisim = [
-            "java",
+            self._java,
             "-jar",
             self._path,
             path,
@@ -740,13 +759,25 @@ def safe_copy(src, dst, retries=5, delay=0.1) :
     
 def safe_read(src, retries=5, delay=0.1) :
     contents = []
-    for _ in range(retries) :
-        try :
-            with open(src, "r", encoding="utf-8") as file :
-                contents = file.readlines()
-            return contents
-        except (FileNotFoundError, PermissionError):
-            time.sleep(delay)
+    encodings = ["utf-8", "GBK", "GB2312", "latin-1"]
+    for _ in range(retries):
+        for enc in encodings:
+            try:
+                with open(src, "r", encoding=enc) as file:
+                    contents = file.readlines()
+                return contents
+            except UnicodeDecodeError:
+                continue
+            except (FileNotFoundError, PermissionError):
+                time.sleep(delay)
+                break
+    try:
+        print_colored(f"WARNING: Can not read {src} with {encodings.__str__()}, try to ignore errors.", 33)
+        with open(src, "r", encoding="utf-8", errors="ignore") as file:
+            contents = file.readlines()
+        return contents
+    except Exception:
+        return contents
 
 def safe_write(src, contents, retries=5, delay=0.1) :
     for _ in range(retries) :
