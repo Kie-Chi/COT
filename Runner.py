@@ -8,6 +8,11 @@ import threading
 from functools import wraps
 from typing import Optional, Iterable, Tuple
 
+REGEX_REG = r'@\s*(?P<pc>[0-9a-f]+)\s*:\s*\$\s*(?P<reg>[0-9a-f]+)\s*<=\s*(?P<val>[0-9a-f]+)'
+REGEX_ADDR = r'@\s*(?P<pc>[0-9a-f]+)\s*:\s*\*\s*(?P<addr>[0-9a-f]+)\s*<=\s*(?P<val>[0-9a-f]+)'
+REGEX_REG_FLOW = r'\s*(?P<ts>\d+)\s*' + REGEX_REG
+REGEX_ADDR_FLOW = r'\s*(?P<ts>\d+)\s*' + REGEX_ADDR
+
 def _dump_hex_task(params: Tuple[str, str, str, str, str]):
     code, hex_txt, mars, the_dir, java_path = params
     mips = [
@@ -70,10 +75,28 @@ def _run_asm_task(params: Tuple[str, str, str, bool, bool, str]):
         if len(contents) > 20000:
             flag = True
     if not flag:
-        contents = [content for content in contents if "@" in content]
-        contents = [content for content in contents if "$ 0" not in content]
+        reg_pat = re.compile(REGEX_REG_FLOW if is_flow else REGEX_REG, re.IGNORECASE)
+        addr_pat = re.compile(REGEX_ADDR_FLOW if is_flow else REGEX_ADDR, re.IGNORECASE)
+        filtered = []
+        for content in contents:
+            m = reg_pat.search(content)
+            if m:
+                reg_str = m.group('reg')
+                try:
+                    reg_num = int(reg_str)
+                except Exception:
+                    try:
+                        reg_num = int(reg_str, 16)
+                    except Exception:
+                        reg_num = 1
+                if reg_num != 0:
+                    filtered.append(content)
+                continue
+            m = addr_pat.search(content)
+            if m:
+                filtered.append(content)
         with open(log_txt, "w", encoding="utf-8") as file:
-            file.writelines(contents)
+            file.writelines(filtered)
     else:
         safe_remove(code)
         safe_remove(log_txt)
@@ -192,15 +215,34 @@ def _isim_task(params: Tuple[str, str, str, str, str, bool, str, Iterable[str]])
         if contents == []:
             ind += 1
             print_colored("WARNING: No output got", 33)
-        contents = [content for content in contents if "@" in content and "$ 0" not in content]
+        reg_pat = re.compile(REGEX_REG_FLOW if is_flow else REGEX_REG, re.IGNORECASE)
+        addr_pat = re.compile(REGEX_ADDR_FLOW if is_flow else REGEX_ADDR, re.IGNORECASE)
+        matched = []
+        for content in contents:
+            m = reg_pat.search(content)
+            if m:
+                reg_str = m.group('reg')
+                try:
+                    reg_num = int(reg_str)
+                except Exception:
+                    try:
+                        reg_num = int(reg_str, 16)
+                    except Exception:
+                        reg_num = 1
+                if reg_num != 0:
+                    matched.append(content)
+                continue
+            m = addr_pat.search(content)
+            if m:
+                matched.append(content)
         if is_flow == True:
             try:
-                contents = [(int(content.split("@")[0].strip()), 1 if "*" in content.split("@")[1] else 0, "@" + content.split("@")[1]) for content in contents]
+                contents = [(int(content.split("@")[0].strip()), 1 if "*" in content.split("@")[1] else 0, "@" + content.split("@")[1]) for content in matched]
             except ValueError as e:
                 print_colored("WARNING: Invalid timestamp in output", 33)
                 raise
         else:
-            contents = [(0, 0, "@" + content.split("@")[1]) for content in contents]
+            contents = [(0, 0, "@" + content.split("@")[1]) for content in matched]
         filted = contents
         if is_flow == True:
             filted.sort(key=lambda x: (x[0], x[1]))
