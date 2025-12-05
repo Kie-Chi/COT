@@ -75,8 +75,8 @@ def _run_asm_task(params: Tuple[str, str, str, bool, bool, str]):
         if len(contents) > 20000:
             flag = True
     if not flag:
-        reg_pat = re.compile(REGEX_REG_FLOW if is_flow else REGEX_REG, re.IGNORECASE)
-        addr_pat = re.compile(REGEX_ADDR_FLOW if is_flow else REGEX_ADDR, re.IGNORECASE)
+        reg_pat = re.compile(REGEX_REG, re.IGNORECASE)
+        addr_pat = re.compile(REGEX_ADDR, re.IGNORECASE)
         filtered = []
         for content in contents:
             m = reg_pat.search(content)
@@ -94,6 +94,12 @@ def _run_asm_task(params: Tuple[str, str, str, bool, bool, str]):
                 continue
             m = addr_pat.search(content)
             if m:
+                filtered.append(content)
+                continue
+            if "@" in content and "*" in content and "<=" in content:
+                filtered.append(content)
+                continue
+            if "@" in content and "$" in content and "<=" in content:
                 filtered.append(content)
         with open(log_txt, "w", encoding="utf-8") as file:
             file.writelines(filtered)
@@ -234,6 +240,12 @@ def _isim_task(params: Tuple[str, str, str, str, str, bool, str, Iterable[str]])
                 continue
             m = addr_pat.search(content)
             if m:
+                matched.append(content)
+                continue
+            if "@" in content and "*" in content and "<=" in content:
+                matched.append(content)
+                continue
+            if "@" in content and "$" in content and "<=" in content:
                 matched.append(content)
         if is_flow == True:
             try:
